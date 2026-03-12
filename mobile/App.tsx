@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, ScrollView, TextInput, Alert
+  ActivityIndicator, ScrollView, TextInput
 } from 'react-native';
 import { Platform } from 'react-native';
 import axios from 'axios';
@@ -11,52 +11,122 @@ const ORANGE = '#FF6B00';
 const GREEN  = '#2ECC71';
 const DARK   = '#1A1A2E';
 
+const LANGUAGES = [
+  { code: 'en', name: 'English',    native: 'English',    flag: '🇺🇸' },
+  { code: 'hi', name: 'Hindi',      native: 'हिंदी',       flag: '🇮🇳' },
+  { code: 'pa', name: 'Punjabi',    native: 'ਪੰਜਾਬੀ',      flag: '🇮🇳' },
+  { code: 'gu', name: 'Gujarati',   native: 'ગુજરાતી',     flag: '🇮🇳' },
+  { code: 'te', name: 'Telugu',     native: 'తెలుగు',      flag: '🇮🇳' },
+  { code: 'ta', name: 'Tamil',      native: 'தமிழ்',       flag: '🇮🇳' },
+  { code: 'ml', name: 'Malayalam',  native: 'മലയാളം',     flag: '🇮🇳' },
+  { code: 'kn', name: 'Kannada',    native: 'ಕನ್ನಡ',       flag: '🇮🇳' },
+  { code: 'bn', name: 'Bengali',    native: 'বাংলা',       flag: '🇮🇳' },
+];
+
 const TokenStore = {
-  async get(): Promise<string|null> {
-    if (Platform.OS === 'web') return localStorage.getItem('auth_token');
+  async get(key: string): Promise<string|null> {
+    if (Platform.OS === 'web') return localStorage.getItem(key);
     const { default: S } = await import('expo-secure-store');
-    return S.getItemAsync('auth_token');
+    return S.getItemAsync(key);
   },
-  async set(t: string) {
-    if (Platform.OS === 'web') { localStorage.setItem('auth_token', t); return; }
+  async set(key: string, value: string) {
+    if (Platform.OS === 'web') { localStorage.setItem(key, value); return; }
     const { default: S } = await import('expo-secure-store');
-    return S.setItemAsync('auth_token', t);
+    return S.setItemAsync(key, value);
   },
-  async clear() {
-    if (Platform.OS === 'web') { localStorage.removeItem('auth_token'); return; }
+  async clear(key: string) {
+    if (Platform.OS === 'web') { localStorage.removeItem(key); return; }
     const { default: S } = await import('expo-secure-store');
-    return S.deleteItemAsync('auth_token');
+    return S.deleteItemAsync(key);
   }
 };
 
 const api = axios.create({ baseURL: API_URL });
 api.interceptors.request.use(async (config) => {
-  const token = await TokenStore.get();
+  const token = await TokenStore.get('auth_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
 // ─── App Root ────────────────────────────────────────────────────────────────
 export default function App() {
-  const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading]   = useState(true);
+  const [user, setUser]         = useState<any>(null);
+  const [language, setLanguage] = useState<string|null>(null);
 
   useEffect(() => {
-    api.get('/auth/me')
-      .then(r => setUser(r.data.data))
-      .catch(() => TokenStore.clear())
-      .finally(() => setLoading(false));
+    Promise.all([
+      TokenStore.get('auth_token'),
+      TokenStore.get('language'),
+    ]).then(async ([token, lang]) => {
+      setLanguage(lang);
+      if (token) {
+        try {
+          const r = await api.get('/auth/me');
+          setUser(r.data.data);
+        } catch {
+          await TokenStore.clear('auth_token');
+        }
+      }
+    }).finally(() => setLoading(false));
   }, []);
 
+  async function handleLanguageSelect(code: string) {
+    await TokenStore.set('language', code);
+    setLanguage(code);
+  }
+
+  async function handleLogout() {
+    await TokenStore.clear('auth_token');
+    setUser(null);
+  }
+
   if (loading) return <View style={s.center}><ActivityIndicator size="large" color={ORANGE}/></View>;
-  if (!user)   return <AuthScreen onLogin={setUser}/>;
-  if (user.user_type === 'owner') return <OwnerApp user={user} onLogout={async () => { await TokenStore.clear(); setUser(null); }}/>;
-  return <WorkerApp user={user} onLogout={async () => { await TokenStore.clear(); setUser(null); }}/>;
+  if (!language) return <LanguageSelector onSelect={handleLanguageSelect}/>;
+  if (!user) return <AuthScreen onLogin={setUser} language={language}/>;
+  if (user.user_type === 'owner') return <OwnerApp user={user} language={language} onLogout={handleLogout} onLanguageChange={handleLanguageSelect}/>;
+  return <WorkerApp user={user} language={language} onLogout={handleLogout} onLanguageChange={handleLanguageSelect}/>;
 }
 
-// ─── Auth Screen (Login + Register) ──────────────────────────────────────────
-function AuthScreen({ onLogin }: { onLogin: (u: any) => void }) {
-  const [mode, setMode] = useState<'login'|'register'>('login');
+// ─── Language Selector ────────────────────────────────────────────────────────
+function LanguageSelector({ onSelect }: { onSelect: (code: string) => void }) {
+  const [selected, setSelected] = useState<string|null>(null);
+
+  function choose(code: string) {
+    setSelected(code);
+    setTimeout(() => onSelect(code), 300);
+  }
+
+  return (
+    <View style={s.langContainer}>
+      <Text style={s.langLogo}>🍳</Text>
+      <Text style={s.langAppName}>RasoiLink</Text>
+      <Text style={s.langTitle}>Choose your language</Text>
+      <Text style={s.langSubtitle}>अपनी भाषा चुनें • ਆਪਣੀ ਭਾਸ਼ਾ ਚੁਣੋ</Text>
+      <ScrollView style={{width:'100%'}} contentContainerStyle={{paddingHorizontal:16, paddingBottom:40}}>
+        {LANGUAGES.map(lang => (
+          <TouchableOpacity
+            key={lang.code}
+            style={[s.langBtn, selected===lang.code && s.langBtnSelected]}
+            onPress={() => choose(lang.code)}
+            activeOpacity={0.7}
+          >
+            <Text style={s.langFlag}>{lang.flag}</Text>
+            <View style={{flex:1, marginLeft:16}}>
+              <Text style={[s.langNative, selected===lang.code && {color:'#fff'}]}>{lang.native}</Text>
+              <Text style={[s.langEnglish, selected===lang.code && {color:'rgba(255,255,255,0.8)'}]}>{lang.name}</Text>
+            </View>
+            {selected===lang.code && <Text style={{color:'#fff', fontSize:20}}>✓</Text>}
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+// ─── Auth Screen ──────────────────────────────────────────────────────────────
+function AuthScreen({ onLogin, language }: { onLogin: (u: any) => void; language: string }) {
+  const [mode, setMode]         = useState<'login'|'register'>('login');
   const [phone, setPhone]       = useState('');
   const [password, setPassword] = useState('');
   const [name, setName]         = useState('');
@@ -71,9 +141,9 @@ function AuthScreen({ onLogin }: { onLogin: (u: any) => void }) {
       if (mode === 'login') {
         res = await api.post('/auth/login', { phone, password });
       } else {
-        res = await api.post('/auth/register', { phone, password, name, user_type: userType, language_code: 'en' });
+        res = await api.post('/auth/register', { phone, password, name, user_type: userType, language_code: language });
       }
-      await TokenStore.set(res.data.data.token);
+      await TokenStore.set('auth_token', res.data.data.token);
       onLogin(res.data.data.user);
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'Something went wrong');
@@ -87,24 +157,22 @@ function AuthScreen({ onLogin }: { onLogin: (u: any) => void }) {
       <Text style={s.tagline}>Fair Work. Fair Pay. Real Trust.</Text>
 
       <View style={s.modeToggle}>
-        <TouchableOpacity style={[s.modeBtn, mode==='login' && s.modeBtnActive]} onPress={() => setMode('login')}>
-          <Text style={[s.modeBtnText, mode==='login' && s.modeBtnTextActive]}>Login</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.modeBtn, mode==='register' && s.modeBtnActive]} onPress={() => setMode('register')}>
-          <Text style={[s.modeBtnText, mode==='register' && s.modeBtnTextActive]}>Register</Text>
-        </TouchableOpacity>
+        {(['login', 'register'] as const).map(m => (
+          <TouchableOpacity key={m} style={[s.modeBtn, mode===m && s.modeBtnActive]} onPress={() => setMode(m)}>
+            <Text style={[s.modeBtnText, mode===m && s.modeBtnTextActive]}>{m === 'login' ? 'Login' : 'Register'}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {mode === 'register' && (
         <>
           <TextInput style={s.input} placeholder="Full Name" value={name} onChangeText={setName}/>
           <View style={s.typeToggle}>
-            <TouchableOpacity style={[s.typeBtn, userType==='worker' && s.typeBtnActive]} onPress={() => setUserType('worker')}>
-              <Text style={[s.typeBtnText, userType==='worker' && s.typeBtnTextActive]}>👨‍🍳 Worker</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.typeBtn, userType==='owner' && s.typeBtnActive]} onPress={() => setUserType('owner')}>
-              <Text style={[s.typeBtnText, userType==='owner' && s.typeBtnTextActive]}>🏪 Owner</Text>
-            </TouchableOpacity>
+            {(['worker', 'owner'] as const).map(t => (
+              <TouchableOpacity key={t} style={[s.typeBtn, userType===t && s.typeBtnActive]} onPress={() => setUserType(t)}>
+                <Text style={[s.typeBtnText, userType===t && s.typeBtnTextActive]}>{t==='worker'?'👨‍🍳 Worker':'🏪 Owner'}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
         </>
       )}
@@ -113,15 +181,15 @@ function AuthScreen({ onLogin }: { onLogin: (u: any) => void }) {
       <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry/>
       {error ? <Text style={s.error}>{error}</Text> : null}
       <TouchableOpacity style={s.btn} onPress={handleSubmit} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>{mode === 'login' ? 'Login' : 'Create Account'}</Text>}
+        {loading ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>{mode==='login'?'Login':'Create Account'}</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 // ─── Worker App ───────────────────────────────────────────────────────────────
-function WorkerApp({ user, onLogout }: { user: any; onLogout: () => void }) {
-  const [tab, setTab] = useState<'jobs'|'chat'|'profile'>('jobs');
+function WorkerApp({ user, language, onLogout, onLanguageChange }: { user: any; language: string; onLogout: () => void; onLanguageChange: (c: string) => void }) {
+  const [tab, setTab] = useState<'jobs'|'offers'|'chat'|'profile'>('jobs');
   return (
     <View style={s.appContainer}>
       <View style={s.header}>
@@ -130,48 +198,67 @@ function WorkerApp({ user, onLogout }: { user: any; onLogout: () => void }) {
       </View>
       <View style={{flex:1}}>
         {tab === 'jobs'    && <JobsTab user={user}/>}
-        {tab === 'chat'    && <ChatTab user={user}/>}
-        {tab === 'profile' && <ProfileTab user={user} onLogout={onLogout}/>}
+        {tab === 'offers'  && <OffersTab user={user}/>}
+        {tab === 'chat'    && <ChatTab user={user} language={language}/>}
+        {tab === 'profile' && <ProfileTab user={user} language={language} onLogout={onLogout} onLanguageChange={onLanguageChange}/>}
       </View>
-      <TabBar tabs={[
-        {key:'jobs',    icon:'💼', label:'Jobs'},
-        {key:'chat',    icon:'💬', label:'Chat'},
-        {key:'profile', icon:'👤', label:'Profile'},
-      ]} active={tab} onChange={(t:any) => setTab(t)}/>
+      <TabBar tabs={[{key:'jobs',icon:'💼',label:'Jobs'},{key:'offers',icon:'📩',label:'Offers'},{key:'chat',icon:'💬',label:'Chat'},{key:'profile',icon:'👤',label:'Profile'}]} active={tab} onChange={(t:any)=>setTab(t)}/>
     </View>
   );
 }
 
 // ─── Owner App ────────────────────────────────────────────────────────────────
-function OwnerApp({ user, onLogout }: { user: any; onLogout: () => void }) {
-  const [tab, setTab] = useState<'dashboard'|'listings'|'applicants'|'profile'>('dashboard');
+function OwnerApp({ user, language, onLogout, onLanguageChange }: { user: any; language: string; onLogout: () => void; onLanguageChange: (c: string) => void }) {
+  const [tab, setTab] = useState<'dashboard'|'listings'|'applicants'|'workers'|'agreements'|'profile'>('dashboard');
   return (
     <View style={s.appContainer}>
-      <View style={[s.header, {backgroundColor: DARK}]}>
+      <View style={[s.header, {backgroundColor:DARK}]}>
         <Text style={s.headerText}>🏪 RasoiLink</Text>
         <Text style={s.welcomeText}>Owner: {user.name.split(' ')[0]}</Text>
       </View>
       <View style={{flex:1}}>
-        {tab === 'dashboard'   && <OwnerDashboard user={user}/>}
-        {tab === 'listings'    && <OwnerListings user={user}/>}
-        {tab === 'applicants'  && <OwnerApplicants user={user}/>}
-        {tab === 'profile'     && <ProfileTab user={user} onLogout={onLogout}/>}
+        {tab === 'dashboard'  && <OwnerDashboard user={user}/>}
+        {tab === 'listings'   && <OwnerListings user={user}/>}
+        {tab === 'applicants' && <OwnerApplicants user={user}/>}
+        {tab === 'workers'     && <BrowseWorkersTab user={user}/>}
+        {tab === 'agreements'  && <OwnerAgreementsTab user={user}/>}
+        {tab === 'profile'    && <ProfileTab user={user} language={language} onLogout={onLogout} onLanguageChange={onLanguageChange}/>}
       </View>
-      <TabBar tabs={[
-        {key:'dashboard',  icon:'📊', label:'Dashboard'},
-        {key:'listings',   icon:'📋', label:'Listings'},
-        {key:'applicants', icon:'👥', label:'Applicants'},
-        {key:'profile',    icon:'👤', label:'Profile'},
-      ]} active={tab} onChange={(t:any) => setTab(t)} color={DARK}/>
+      <TabBar tabs={[{key:'dashboard',icon:'📊',label:'Dashboard'},{key:'listings',icon:'📋',label:'Jobs'},{key:'workers',icon:'🔍',label:'Workers'},{key:'applicants',icon:'👥',label:'Applicants'},{key:'agreements',icon:'📄',label:'Agreements'},{key:'profile',icon:'👤',label:'Profile'}]} active={tab} onChange={(t:any)=>setTab(t)} color={DARK}/>
+    </View>
+  );
+}
+
+// ─── Language Picker (inline, for profile) ────────────────────────────────────
+function LanguagePicker({ current, onSelect }: { current: string; onSelect: (c: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const lang = LANGUAGES.find(l => l.code === current);
+  return (
+    <View>
+      <TouchableOpacity style={s.langPickerBtn} onPress={() => setOpen(o => !o)}>
+        <Text style={{fontSize:16}}>{lang?.flag} {lang?.native}</Text>
+        <Text style={{color:'#999'}}>▾</Text>
+      </TouchableOpacity>
+      {open && (
+        <View style={s.langPickerDropdown}>
+          {LANGUAGES.map(l => (
+            <TouchableOpacity key={l.code} style={[s.langPickerItem, current===l.code && {backgroundColor:'#FFF3E0'}]}
+              onPress={() => { onSelect(l.code); setOpen(false); }}>
+              <Text>{l.flag} {l.native}</Text>
+              {current===l.code && <Text style={{color:ORANGE}}>✓</Text>}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
 
 // ─── Owner Dashboard ──────────────────────────────────────────────────────────
 function OwnerDashboard({ user }: { user: any }) {
-  const [listings, setListings] = useState<any[]>([]);
+  const [listings, setListings]       = useState<any[]>([]);
   const [applications, setApplications] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]         = useState(true);
 
   useEffect(() => {
     Promise.all([
@@ -185,42 +272,34 @@ function OwnerDashboard({ user }: { user: any }) {
 
   if (loading) return <View style={s.center}><ActivityIndicator color={DARK}/></View>;
 
-  const activeListings = listings.filter((l:any) => l.status === 'active').length;
-  const pendingApps    = applications.filter((a:any) => a.status === 'pending').length;
+  const activeListings = listings.filter((l:any) => l.status==='active').length;
+  const pendingApps    = applications.filter((a:any) => a.status==='pending').length;
 
   return (
     <ScrollView style={{flex:1, padding:16}}>
       <Text style={s.sectionTitle}>Dashboard</Text>
-
       <View style={s.statsRow}>
-        <View style={[s.statCard, {borderLeftColor: ORANGE}]}>
-          <Text style={s.statNum}>{activeListings}</Text>
-          <Text style={s.statLabel}>Active Jobs</Text>
-        </View>
-        <View style={[s.statCard, {borderLeftColor: GREEN}]}>
-          <Text style={s.statNum}>{pendingApps}</Text>
-          <Text style={s.statLabel}>Pending Apps</Text>
-        </View>
-        <View style={[s.statCard, {borderLeftColor: DARK}]}>
-          <Text style={s.statNum}>{applications.length}</Text>
-          <Text style={s.statLabel}>Total Apps</Text>
-        </View>
+        {[[activeListings,'Active Jobs',ORANGE],[pendingApps,'Pending',GREEN],[applications.length,'Total Apps',DARK]].map(([n,l,c]:any) => (
+          <View key={l} style={[s.statCard, {borderLeftColor:c}]}>
+            <Text style={s.statNum}>{n}</Text>
+            <Text style={s.statLabel}>{l}</Text>
+          </View>
+        ))}
       </View>
-
-      <Text style={[s.sectionTitle, {marginTop:16}]}>Recent Applications</Text>
+      <Text style={[s.sectionTitle,{marginTop:16}]}>Recent Applications</Text>
       {applications.slice(0,3).map((app:any) => (
         <View key={app.offer_id} style={s.card}>
           <Text style={s.cardTitle}>{app.worker_name}</Text>
           <Text style={s.cardSub}>{app.listing_title}</Text>
-          <View style={{flexDirection:'row', justifyContent:'space-between', marginTop:4}}>
-            <Text style={s.cardSub}>⭐ {app.trust_score} trust • {app.years_experience}yr exp</Text>
-            <View style={[s.statusBadge, {backgroundColor: app.status==='pending'?'#FFF3E0': app.status==='accepted'?'#E8F5E9':'#FFEBEE'}]}>
-              <Text style={{fontSize:11, color: app.status==='pending'?ORANGE: app.status==='accepted'?GREEN:'#f44336'}}>{app.status.toUpperCase()}</Text>
+          <View style={{flexDirection:'row',justifyContent:'space-between',marginTop:4}}>
+            <Text style={s.cardSub}>⭐ {app.trust_score} • {app.years_experience}yr exp</Text>
+            <View style={[s.statusBadge,{backgroundColor:app.status==='pending'?'#FFF3E0':app.status==='accepted'?'#E8F5E9':'#FFEBEE'}]}>
+              <Text style={{fontSize:11,color:app.status==='pending'?ORANGE:app.status==='accepted'?GREEN:'#f44336'}}>{app.status.toUpperCase()}</Text>
             </View>
           </View>
         </View>
       ))}
-      {applications.length === 0 && <Text style={s.emptyText}>No applications yet. Post a job to get started!</Text>}
+      {applications.length===0 && <Text style={s.emptyText}>No applications yet. Post a job to get started!</Text>}
     </ScrollView>
   );
 }
@@ -230,45 +309,31 @@ function OwnerListings({ user }: { user: any }) {
   const [listings, setListings] = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({
-    title: '', role_code: 'line_cook', city: '', state: 'NJ',
-    pay_min: '500', pay_max: '700', hours: '40',
-    description_en: '', accommodation_provided: false,
-  });
+  const [form, setForm] = useState({ title:'', city:'', state:'NJ', pay_min:'500', pay_max:'700', hours:'40', description_en:'' });
   const [submitting, setSubmitting] = useState(false);
 
   function load() {
     setLoading(true);
-    api.get(`/owners/${user.user_id}/listings`)
-      .then(r => setListings(r.data.data ?? []))
-      .finally(() => setLoading(false));
+    api.get(`/owners/${user.user_id}/listings`).then(r => setListings(r.data.data??[])).finally(()=>setLoading(false));
   }
-
-  useEffect(() => { load(); }, []);
+  useEffect(()=>{load();},[]);
 
   async function postJob() {
     setSubmitting(true);
     try {
       await api.post('/listings', {
-        title: form.title,
-        role_code: form.role_code,
-        city: form.city,
-        state: form.state,
-        pay_min_cents: Math.round(parseFloat(form.pay_min) * 100),
-        pay_max_cents: Math.round(parseFloat(form.pay_max) * 100),
+        title: form.title, city: form.city, state: form.state,
+        role_code: 'line_cook',
+        pay_min_cents: Math.round(parseFloat(form.pay_min)*100),
+        pay_max_cents: Math.round(parseFloat(form.pay_max)*100),
         hours_per_week: parseInt(form.hours),
         description_en: form.description_en,
-        accommodation_provided: form.accommodation_provided,
-        pay_frequency: 'weekly',
-        cuisine_required: [],
-        years_exp_required: 0,
-        notice_period_weeks: 2,
+        accommodation_provided: false, pay_frequency: 'weekly',
+        cuisine_required: [], years_exp_required: 0, notice_period_weeks: 2,
       });
-      setShowForm(false);
-      load();
-    } catch (e: any) {
-      alert(e.response?.data?.error ?? 'Failed to post job');
-    } finally { setSubmitting(false); }
+      setShowForm(false); load();
+    } catch(e:any) { alert(e.response?.data?.error??'Failed to post job'); }
+    finally { setSubmitting(false); }
   }
 
   if (loading) return <View style={s.center}><ActivityIndicator color={DARK}/></View>;
@@ -276,32 +341,27 @@ function OwnerListings({ user }: { user: any }) {
   if (showForm) return (
     <ScrollView style={{flex:1}} contentContainerStyle={{padding:16}}>
       <Text style={s.sectionTitle}>Post a New Job</Text>
-      {[
-        {key:'title',          label:'Job Title',        placeholder:'e.g. Tandoor Chef'},
-        {key:'city',           label:'City',             placeholder:'e.g. Edison'},
-        {key:'state',          label:'State',            placeholder:'e.g. NJ'},
-        {key:'pay_min',        label:'Min Pay ($/week)', placeholder:'500'},
-        {key:'pay_max',        label:'Max Pay ($/week)', placeholder:'700'},
-        {key:'hours',          label:'Hours/Week',       placeholder:'40'},
-        {key:'description_en', label:'Job Description',  placeholder:'Describe the role...'},
-      ].map(f => (
+      {([
+        {key:'title',label:'Job Title',placeholder:'e.g. Tandoor Chef'},
+        {key:'city',label:'City',placeholder:'e.g. Edison'},
+        {key:'state',label:'State',placeholder:'NJ'},
+        {key:'pay_min',label:'Min Pay ($/week)',placeholder:'500'},
+        {key:'pay_max',label:'Max Pay ($/week)',placeholder:'700'},
+        {key:'hours',label:'Hours/Week',placeholder:'40'},
+        {key:'description_en',label:'Description',placeholder:'Describe the role...'},
+      ] as const).map(f => (
         <View key={f.key} style={{marginBottom:12}}>
           <Text style={s.formLabel}>{f.label}</Text>
-          <TextInput
-            style={[s.input, f.key==='description_en' && {height:80, textAlignVertical:'top'}]}
-            placeholder={f.placeholder}
-            value={(form as any)[f.key]}
-            onChangeText={v => setForm(p => ({...p, [f.key]: v}))}
-            multiline={f.key==='description_en'}
-          />
+          <TextInput style={[s.input,f.key==='description_en'&&{height:80,textAlignVertical:'top'}]}
+            placeholder={f.placeholder} value={form[f.key]} onChangeText={v=>setForm(p=>({...p,[f.key]:v}))} multiline={f.key==='description_en'}/>
         </View>
       ))}
-      <View style={{flexDirection:'row', gap:8}}>
-        <TouchableOpacity style={[s.btn, {flex:1, backgroundColor:'#ccc'}]} onPress={() => setShowForm(false)}>
-          <Text style={[s.btnText, {color:'#333'}]}>Cancel</Text>
+      <View style={{flexDirection:'row',gap:8}}>
+        <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:'#ccc'}]} onPress={()=>setShowForm(false)}>
+          <Text style={[s.btnText,{color:'#333'}]}>Cancel</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[s.btn, {flex:1, backgroundColor:DARK}]} onPress={postJob} disabled={submitting}>
-          {submitting ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Post Job</Text>}
+        <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:DARK}]} onPress={postJob} disabled={submitting}>
+          {submitting?<ActivityIndicator color="#fff"/>:<Text style={s.btnText}>Post Job</Text>}
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -309,25 +369,25 @@ function OwnerListings({ user }: { user: any }) {
 
   return (
     <ScrollView style={{flex:1}}>
-      <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'center', padding:16}}>
+      <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',padding:16}}>
         <Text style={s.sectionTitle}>My Listings</Text>
-        <TouchableOpacity style={[s.btn, {backgroundColor:DARK, paddingVertical:8, paddingHorizontal:14}]} onPress={() => setShowForm(true)}>
+        <TouchableOpacity style={[s.btn,{backgroundColor:DARK,paddingVertical:8,paddingHorizontal:14}]} onPress={()=>setShowForm(true)}>
           <Text style={s.btnText}>+ Post Job</Text>
         </TouchableOpacity>
       </View>
       {listings.map((job:any) => (
         <View key={job.listing_id} style={s.card}>
-          <View style={{flexDirection:'row', justifyContent:'space-between'}}>
+          <View style={{flexDirection:'row',justifyContent:'space-between'}}>
             <Text style={s.cardTitle}>{job.title}</Text>
-            <View style={[s.statusBadge, {backgroundColor: job.status==='active'?'#E8F5E9':'#F5F5F5'}]}>
-              <Text style={{fontSize:11, color: job.status==='active'?GREEN:'#999'}}>{job.status.toUpperCase()}</Text>
+            <View style={[s.statusBadge,{backgroundColor:job.status==='active'?'#E8F5E9':'#F5F5F5'}]}>
+              <Text style={{fontSize:11,color:job.status==='active'?GREEN:'#999'}}>{job.status.toUpperCase()}</Text>
             </View>
           </View>
           <Text style={s.cardSub}>{job.city}, {job.state}</Text>
           <Text style={s.cardPay}>${Math.round(job.pay_min_cents/100)}–${Math.round(job.pay_max_cents/100)}/week</Text>
         </View>
       ))}
-      {listings.length === 0 && <Text style={s.emptyText}>No listings yet. Post your first job!</Text>}
+      {listings.length===0 && <Text style={s.emptyText}>No listings yet. Post your first job!</Text>}
     </ScrollView>
   );
 }
@@ -339,19 +399,37 @@ function OwnerApplicants({ user }: { user: any }) {
 
   function load() {
     setLoading(true);
-    api.get(`/owners/${user.user_id}/applications`)
-      .then(r => setApplications(r.data.data ?? []))
-      .finally(() => setLoading(false));
+    api.get(`/owners/${user.user_id}/applications`).then(r=>setApplications(r.data.data??[])).finally(()=>setLoading(false));
   }
+  useEffect(()=>{load();},[]);
 
-  useEffect(() => { load(); }, []);
+  const [agreement, setAgreement] = useState<any>(null);
 
   async function updateStatus(offer_id: string, status: string) {
-    await api.patch(`/offers/${offer_id}`, { status });
+    if (status === 'accepted') {
+      // Create agreement first
+      const res = await api.post(`/offers/${offer_id}/agreement`, {});
+      const agRes = await api.get(`/offers/${offer_id}/agreement`);
+      setAgreement(agRes.data.data);
+    } else {
+      await api.patch(`/offers/${offer_id}`, { status });
+    }
     load();
   }
 
   if (loading) return <View style={s.center}><ActivityIndicator color={DARK}/></View>;
+
+  if (agreement) return (
+    <AgreementScreen
+      agreement={agreement}
+      userType="owner"
+      onSign={async () => {
+        const res = await api.get(`/offers/${agreement.offer_id}/agreement`);
+        setAgreement(res.data.data);
+      }}
+      onClose={() => setAgreement(null)}
+    />
+  );
 
   return (
     <ScrollView style={{flex:1}}>
@@ -361,51 +439,48 @@ function OwnerApplicants({ user }: { user: any }) {
           <Text style={s.cardTitle}>{app.worker_name}</Text>
           <Text style={s.cardSub}>Applied for: {app.listing_title}</Text>
           <Text style={s.cardSub}>📞 {app.worker_phone}</Text>
-          <Text style={s.cardSub}>⭐ Trust: {app.trust_score} • {app.years_experience} yrs exp</Text>
-          <Text style={s.cardSub}>🍴 {(app.cuisine_specializations??[]).join(', ') || 'Not specified'}</Text>
-          <Text style={s.cardSub}>💰 ${Math.round(app.salary_min_cents/100)}–${Math.round(app.salary_max_cents/100)}/week expected</Text>
-
-          {app.status === 'pending' && (
-            <View style={{flexDirection:'row', gap:8, marginTop:10}}>
-              <TouchableOpacity style={[s.btn, {flex:1, backgroundColor:GREEN, paddingVertical:8}]} onPress={() => updateStatus(app.offer_id, 'accepted')}>
+          <Text style={s.cardSub}>⭐ Trust: {app.trust_score} • {app.years_experience}yr exp</Text>
+          <Text style={s.cardSub}>🍴 {(app.cuisine_specializations??[]).join(', ')||'Not specified'}</Text>
+          <Text style={s.cardSub}>💰 ${Math.round(app.salary_min_cents/100)}–${Math.round(app.salary_max_cents/100)}/week</Text>
+          {app.status==='pending'?(
+            <View style={{flexDirection:'row',gap:8,marginTop:10}}>
+              <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:GREEN,paddingVertical:8}]} onPress={()=>updateStatus(app.offer_id,'accepted')}>
                 <Text style={s.btnText}>✓ Accept</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[s.btn, {flex:1, backgroundColor:'#f44336', paddingVertical:8}]} onPress={() => updateStatus(app.offer_id, 'rejected')}>
+              <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:'#f44336',paddingVertical:8}]} onPress={()=>updateStatus(app.offer_id,'rejected')}>
                 <Text style={s.btnText}>✗ Reject</Text>
               </TouchableOpacity>
             </View>
-          )}
-          {app.status !== 'pending' && (
-            <View style={[s.statusBadge, {marginTop:8, alignSelf:'flex-start', backgroundColor: app.status==='accepted'?'#E8F5E9':'#FFEBEE'}]}>
-              <Text style={{color: app.status==='accepted'?GREEN:'#f44336', fontSize:12, fontWeight:'600'}}>{app.status.toUpperCase()}</Text>
+          ):(
+            <View style={[s.statusBadge,{marginTop:8,alignSelf:'flex-start',backgroundColor:app.status==='accepted'?'#E8F5E9':'#FFEBEE'}]}>
+              <Text style={{color:app.status==='accepted'?GREEN:'#f44336',fontSize:12,fontWeight:'600'}}>{app.status.toUpperCase()}</Text>
             </View>
           )}
         </View>
       ))}
-      {applications.length === 0 && <Text style={s.emptyText}>No applications yet.</Text>}
+      {applications.length===0 && <Text style={s.emptyText}>No applications yet.</Text>}
     </ScrollView>
   );
 }
 
 // ─── Worker: Jobs Tab ─────────────────────────────────────────────────────────
 function JobsTab({ user }: { user: any }) {
-  const [jobs, setJobs]       = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [applying, setApplying] = useState<string|null>(null);
-  const [applied, setApplied]   = useState<Set<string>>(new Set());
+  const [jobs, setJobs]           = useState<any[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [applying, setApplying]   = useState<string|null>(null);
+  const [applied, setApplied]     = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    api.get('/listings').then(r => setJobs(r.data.data ?? [])).finally(() => setLoading(false));
-  }, []);
+  useEffect(()=>{
+    api.get('/listings').then(r=>setJobs(r.data.data??[])).finally(()=>setLoading(false));
+  },[]);
 
   async function apply(listing_id: string) {
     setApplying(listing_id);
     try {
       await api.post(`/listings/${listing_id}/apply`, {});
-      setApplied(s => new Set([...s, listing_id]));
-    } catch (e: any) {
-      alert(e.response?.data?.error ?? 'Failed to apply');
-    } finally { setApplying(null); }
+      setApplied(s=>new Set([...s, listing_id]));
+    } catch(e:any) { alert(e.response?.data?.error??'Failed to apply'); }
+    finally { setApplying(null); }
   }
 
   if (loading) return <View style={s.center}><ActivityIndicator color={ORANGE}/></View>;
@@ -421,13 +496,13 @@ function JobsTab({ user }: { user: any }) {
           {job.accommodation_provided && <Text style={s.badge}>🏠 Accommodation included</Text>}
           <Text style={s.cardSub}>⭐ Owner trust: {job.owner_trust_score}</Text>
           <TouchableOpacity
-            style={[s.btn, {marginTop:10, paddingVertical:8, backgroundColor: applied.has(job.listing_id)?GREEN:ORANGE}]}
-            onPress={() => apply(job.listing_id)}
-            disabled={!!applying || applied.has(job.listing_id)}
+            style={[s.btn,{marginTop:10,paddingVertical:8,backgroundColor:applied.has(job.listing_id)?GREEN:ORANGE}]}
+            onPress={()=>apply(job.listing_id)}
+            disabled={!!applying||applied.has(job.listing_id)}
           >
-            {applying === job.listing_id
-              ? <ActivityIndicator color="#fff"/>
-              : <Text style={s.btnText}>{applied.has(job.listing_id) ? '✓ Applied' : 'Apply Now'}</Text>
+            {applying===job.listing_id
+              ?<ActivityIndicator color="#fff"/>
+              :<Text style={s.btnText}>{applied.has(job.listing_id)?'✓ Applied':'Apply Now'}</Text>
             }
           </TouchableOpacity>
         </View>
@@ -437,33 +512,37 @@ function JobsTab({ user }: { user: any }) {
 }
 
 // ─── Worker: Chat Tab ─────────────────────────────────────────────────────────
-function ChatTab({ user }: { user: any }) {
+function ChatTab({ user, language }: { user: any; language: string }) {
+  const lang = LANGUAGES.find(l=>l.code===language);
   const [messages, setMessages] = useState([
     { role:'assistant', text:`Namaste ${user.name.split(' ')[0]}! 🙏 I'm here to help you find the perfect job. What kind of position are you looking for?` }
   ]);
-  const [input, setInput]       = useState('');
+  const [input, setInput]         = useState('');
   const [sessionId, setSessionId] = useState<string|undefined>();
-  const [loading, setLoading]   = useState(false);
+  const [loading, setLoading]     = useState(false);
 
   async function send() {
-    if (!input.trim() || loading) return;
+    if (!input.trim()||loading) return;
     const msg = input.trim(); setInput('');
-    setMessages(m => [...m, {role:'user', text:msg}]);
+    setMessages(m=>[...m,{role:'user',text:msg}]);
     setLoading(true);
     try {
-      const res = await api.post('/chat/message', { message: msg, session_id: sessionId });
+      const res = await api.post('/chat/message', { message: msg, session_id: sessionId, language_code: language });
       setSessionId(res.data.data.session_id);
-      setMessages(m => [...m, {role:'assistant', text:res.data.data.message}]);
+      setMessages(m=>[...m,{role:'assistant',text:res.data.data.message}]);
     } catch {
-      setMessages(m => [...m, {role:'assistant', text:'Sorry, something went wrong.'}]);
+      setMessages(m=>[...m,{role:'assistant',text:'Sorry, something went wrong.'}]);
     } finally { setLoading(false); }
   }
 
   return (
     <View style={{flex:1}}>
+      <View style={s.chatLangBadge}>
+        <Text style={s.chatLangText}>{lang?.flag} {lang?.native}</Text>
+      </View>
       <ScrollView style={s.chatScroll} contentContainerStyle={{padding:12}}>
-        {messages.map((m,i) => (
-          <View key={i} style={[s.bubble, m.role==='user'?s.userBubble:s.aiBubble]}>
+        {messages.map((m,i)=>(
+          <View key={i} style={[s.bubble,m.role==='user'?s.userBubble:s.aiBubble]}>
             <Text style={m.role==='user'?s.userText:s.aiText}>{m.text}</Text>
           </View>
         ))}
@@ -480,19 +559,25 @@ function ChatTab({ user }: { user: any }) {
 }
 
 // ─── Shared: Profile Tab ──────────────────────────────────────────────────────
-function ProfileTab({ user, onLogout }: { user: any; onLogout: () => void }) {
-  const isOwner = user.user_type === 'owner';
+function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any; language: string; onLogout: ()=>void; onLanguageChange: (c:string)=>void }) {
+  const isOwner = user.user_type==='owner';
   return (
     <ScrollView contentContainerStyle={s.profileContainer}>
       <Text style={{fontSize:60,marginTop:20}}>{isOwner?'🏪':'👤'}</Text>
       <Text style={s.profileName}>{user.name}</Text>
       <Text style={{fontSize:14,color:'#666',marginBottom:24}}>{user.phone}</Text>
-      {[
-        ['Account Type', isOwner ? '🏪 Owner' : '👨‍🍳 Worker'],
-        ['Trust Score',  `⭐ ${user.trust_score??'0.0'}`],
-        ['Verified',     user.is_verified?'✅ Yes':'❌ No'],
+
+      <View style={{width:'100%',marginBottom:16}}>
+        <Text style={[s.formLabel,{marginBottom:8}]}>🌐 Language</Text>
+        <LanguagePicker current={language} onSelect={async (c)=>{ await TokenStore.set('language',c); onLanguageChange(c); }}/>
+      </View>
+
+      {([
+        ['Account Type', isOwner?'🏪 Owner':'👨‍🍳 Worker'],
+        ['Trust Score', `⭐ ${user.trust_score??'0.0'}`],
+        ['Verified', user.is_verified?'✅ Yes':'❌ No'],
         ['Member Since', new Date(user.created_at).toLocaleDateString()],
-      ].map(([k,v]) => (
+      ] as [string,string][]).map(([k,v])=>(
         <View key={k} style={s.profileRow}>
           <Text style={s.profileLabel}>{k}</Text>
           <Text style={s.profileValue}>{v}</Text>
@@ -509,72 +594,746 @@ function ProfileTab({ user, onLogout }: { user: any; onLogout: () => void }) {
 function TabBar({ tabs, active, onChange, color=ORANGE }: { tabs:{key:string;icon:string;label:string}[]; active:string; onChange:(k:string)=>void; color?:string }) {
   return (
     <View style={s.tabBar}>
-      {tabs.map(t => (
-        <TouchableOpacity key={t.key} style={s.tabBtn} onPress={() => onChange(t.key)}>
-          <Text style={[s.tabIcon, active===t.key && {color}]}>{t.icon}</Text>
-          <Text style={[s.tabLabel, active===t.key && {color}]}>{t.label}</Text>
+      {tabs.map(t=>(
+        <TouchableOpacity key={t.key} style={s.tabBtn} onPress={()=>onChange(t.key)}>
+          <Text style={[s.tabIcon,active===t.key&&{color}]}>{t.icon}</Text>
+          <Text style={[s.tabLabel,active===t.key&&{color}]}>{t.label}</Text>
         </TouchableOpacity>
       ))}
     </View>
   );
 }
 
+
+// ─── Worker: Offers Tab ───────────────────────────────────────────────────────
+function OffersTab({ user }: { user: any }) {
+  const [offers, setOffers]     = useState<any[]>([]);
+  const [loading, setLoading]   = useState(true);
+  const [responding, setResponding] = useState<string|null>(null);
+
+  function load() {
+    setLoading(true);
+    api.get(`/workers/${user.user_id}/offers`)
+      .then(r => setOffers(r.data.data ?? []))
+      .finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []);
+
+  const [agreement, setAgreement] = useState<any>(null);
+
+  async function respond(offer_id: string, status: string) {
+    setResponding(offer_id);
+    try {
+      if (status === 'accepted') {
+        await api.post(`/offers/${offer_id}/agreement`, {});
+        const agRes = await api.get(`/offers/${offer_id}/agreement`);
+        setAgreement(agRes.data.data);
+      } else {
+        await api.patch(`/offers/${offer_id}`, { status });
+      }
+      load();
+    } catch(e: any) {
+      alert(e.response?.data?.error ?? 'Failed to respond');
+    } finally { setResponding(null); }
+  }
+
+  if (loading) return <View style={s.center}><ActivityIndicator color={ORANGE}/></View>;
+
+  if (agreement) return (
+    <AgreementScreen
+      agreement={agreement}
+      userType="worker"
+      onSign={async () => {
+        const res = await api.get(`/offers/${agreement.offer_id}/agreement`);
+        setAgreement(res.data.data);
+      }}
+      onClose={() => setAgreement(null)}
+    />
+  );
+
+  return (
+    <ScrollView style={{flex:1}}>
+      <Text style={s.sectionTitle}>My Offers ({offers.length})</Text>
+      {offers.length === 0 && (
+        <View style={s.emptyContainer}>
+          <Text style={s.emptyIcon}>📭</Text>
+          <Text style={s.emptyText}>No offers yet.</Text>
+          <Text style={s.emptySubtext}>Apply to jobs and owners will send you offers here.</Text>
+        </View>
+      )}
+      {offers.map((offer: any) => {
+        const isPending  = offer.status === 'pending';
+        const isAccepted = offer.status === 'accepted';
+        const isRejected = offer.status === 'rejected';
+        const pay = Math.round(offer.offered_pay_cents / 100);
+        const expires = new Date(offer.expires_at).toLocaleDateString();
+
+        return (
+          <View key={offer.offer_id} style={[s.card, isAccepted && s.cardAccepted, isRejected && s.cardRejected]}>
+            {/* Header */}
+            <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
+              <View style={{flex:1}}>
+                <Text style={s.cardTitle}>{offer.listing_title}</Text>
+                <Text style={s.cardSub}>🏪 {offer.restaurant_name}</Text>
+                <Text style={s.cardSub}>👤 {offer.owner_name}</Text>
+              </View>
+              <View style={[s.statusBadge, {
+                backgroundColor: isPending?'#FFF3E0':isAccepted?'#E8F5E9':'#FFEBEE',
+                alignSelf:'flex-start'
+              }]}>
+                <Text style={{
+                  fontSize:11, fontWeight:'700',
+                  color: isPending?ORANGE:isAccepted?GREEN:'#f44336'
+                }}>
+                  {offer.status.toUpperCase()}
+                </Text>
+              </View>
+            </View>
+
+            {/* Offer details */}
+            <View style={s.offerDetails}>
+              <View style={s.offerDetail}>
+                <Text style={s.offerDetailLabel}>💰 Weekly Pay</Text>
+                <Text style={s.offerDetailValue}>${pay}/week</Text>
+              </View>
+              <View style={s.offerDetail}>
+                <Text style={s.offerDetailLabel}>⏱ Hours</Text>
+                <Text style={s.offerDetailValue}>{offer.offered_hours_pw}h/week</Text>
+              </View>
+              <View style={s.offerDetail}>
+                <Text style={s.offerDetailLabel}>📍 Location</Text>
+                <Text style={s.offerDetailValue}>{offer.city||'TBD'}, {offer.state}</Text>
+              </View>
+              <View style={s.offerDetail}>
+                <Text style={s.offerDetailLabel}>🏠 Housing</Text>
+                <Text style={s.offerDetailValue}>{offer.accommodation_provided?'✅ Included':'❌ Not included'}</Text>
+              </View>
+            </View>
+
+            {offer.description_en && (
+              <Text style={s.offerDesc}>{offer.description_en}</Text>
+            )}
+
+            <Text style={s.offerExpiry}>⭐ Owner trust: {offer.owner_trust_score} • Expires {expires}</Text>
+
+            {/* Action buttons */}
+            {isPending && (
+              <View style={{flexDirection:'row', gap:8, marginTop:12}}>
+                <TouchableOpacity
+                  style={[s.btn, {flex:1, backgroundColor:'#f44336', paddingVertical:10}]}
+                  onPress={() => respond(offer.offer_id, 'rejected')}
+                  disabled={responding === offer.offer_id}
+                >
+                  {responding === offer.offer_id
+                    ? <ActivityIndicator color="#fff"/>
+                    : <Text style={s.btnText}>✗ Decline</Text>
+                  }
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.btn, {flex:2, backgroundColor:GREEN, paddingVertical:10}]}
+                  onPress={() => respond(offer.offer_id, 'accepted')}
+                  disabled={responding === offer.offer_id}
+                >
+                  {responding === offer.offer_id
+                    ? <ActivityIndicator color="#fff"/>
+                    : <Text style={s.btnText}>✓ Accept Offer</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            )}
+            {isAccepted && (
+              <View style={s.acceptedBanner}>
+                <Text style={s.acceptedBannerText}>🎉 You accepted this offer! The owner will contact you soon.</Text>
+              </View>
+            )}
+            {isRejected && (
+              <View style={s.rejectedBanner}>
+                <Text style={s.rejectedBannerText}>You declined this offer.</Text>
+              </View>
+            )}
+          </View>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+
+// ─── Owner: Browse Workers Tab ────────────────────────────────────────────────
+function BrowseWorkersTab({ user }: { user: any }) {
+  const [workers, setWorkers]       = useState<any[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [sending, setSending]       = useState<string|null>(null);
+  const [sent, setSent]             = useState<Set<string>>(new Set());
+  const [listings, setListings]     = useState<any[]>([]);
+  const [selectedListing, setSelectedListing] = useState<string>('');
+  const [filterState, setFilterState] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+
+  function load(state='') {
+    setLoading(true);
+    const params = state ? `?state=${state}` : '';
+    Promise.all([
+      api.get(`/workers/search${params}`),
+      api.get(`/owners/${user.user_id}/listings`),
+    ]).then(([w, l]) => {
+      setWorkers(w.data.data ?? []);
+      const active = (l.data.data ?? []).filter((x:any) => x.status === 'active');
+      setListings(active);
+      if (active.length > 0 && !selectedListing) setSelectedListing(active[0].listing_id);
+    }).finally(() => setLoading(false));
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function sendOffer(worker_id: string) {
+    if (!selectedListing) { alert('Please select a listing first'); return; }
+    setSending(worker_id);
+    try {
+      await api.post(`/listings/${selectedListing}/offer`, { worker_id });
+      setSent(s => new Set([...s, worker_id]));
+    } catch(e: any) {
+      alert(e.response?.data?.error ?? 'Failed to send offer');
+    } finally { setSending(null); }
+  }
+
+  if (loading) return <View style={s.center}><ActivityIndicator color={DARK}/></View>;
+
+  return (
+    <View style={{flex:1}}>
+      {/* Listing selector */}
+      <View style={s.browseHeader}>
+        <Text style={s.browseHeaderLabel}>Sending offers for:</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginTop:6}}>
+          {listings.map((l:any) => (
+            <TouchableOpacity
+              key={l.listing_id}
+              style={[s.listingChip, selectedListing===l.listing_id && s.listingChipActive]}
+              onPress={() => setSelectedListing(l.listing_id)}
+            >
+              <Text style={[s.listingChipText, selectedListing===l.listing_id && s.listingChipTextActive]}>
+                {l.title}
+              </Text>
+            </TouchableOpacity>
+          ))}
+          {listings.length === 0 && <Text style={{color:'#f44336', fontSize:13}}>No active listings — post a job first!</Text>}
+        </ScrollView>
+      </View>
+
+      {/* Filter bar */}
+      <View style={s.filterBar}>
+        <TextInput
+          style={s.filterInput}
+          placeholder="Filter by state (e.g. NJ)"
+          value={filterState}
+          onChangeText={setFilterState}
+          onSubmitEditing={() => load(filterState)}
+          returnKeyType="search"
+        />
+        <TouchableOpacity style={[s.btn, {paddingVertical:8, paddingHorizontal:14, backgroundColor:DARK}]} onPress={() => load(filterState)}>
+          <Text style={s.btnText}>Search</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={{flex:1}}>
+        <Text style={s.sectionTitle}>Available Workers ({workers.length})</Text>
+        {workers.map((worker:any) => {
+          const alreadySent = sent.has(worker.user_id);
+          const payMin = Math.round(worker.salary_min_cents/100);
+          const payMax = Math.round(worker.salary_max_cents/100);
+          return (
+            <View key={worker.user_id} style={s.card}>
+              {/* Worker header */}
+              <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
+                <View style={{flex:1}}>
+                  <View style={{flexDirection:'row', alignItems:'center', gap:8}}>
+                    <Text style={s.cardTitle}>{worker.name}</Text>
+                    {worker.is_verified && <Text style={{fontSize:12, color:GREEN}}>✅</Text>}
+                  </View>
+                  <Text style={[s.cardSub, {color:ORANGE, fontWeight:'600'}]}>
+                    {worker.role_code?.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase())}
+                  </Text>
+                </View>
+                <View style={{alignItems:'flex-end'}}>
+                  <Text style={{fontSize:18, fontWeight:'bold', color:DARK}}>⭐ {worker.trust_score}</Text>
+                  <Text style={{fontSize:11, color:'#999'}}>{worker.profile_completeness}% complete</Text>
+                </View>
+              </View>
+
+              {/* Worker details grid */}
+              <View style={s.offerDetails}>
+                <View style={s.offerDetail}>
+                  <Text style={s.offerDetailLabel}>📍 Location</Text>
+                  <Text style={s.offerDetailValue}>{worker.current_state}</Text>
+                </View>
+                <View style={s.offerDetail}>
+                  <Text style={s.offerDetailLabel}>⏱ Experience</Text>
+                  <Text style={s.offerDetailValue}>{worker.years_experience} years</Text>
+                </View>
+                <View style={s.offerDetail}>
+                  <Text style={s.offerDetailLabel}>💰 Expected</Text>
+                  <Text style={s.offerDetailValue}>${payMin}–${payMax}/wk</Text>
+                </View>
+                <View style={s.offerDetail}>
+                  <Text style={s.offerDetailLabel}>🏠 Needs Housing</Text>
+                  <Text style={s.offerDetailValue}>{worker.needs_accommodation?'Yes':'No'}</Text>
+                </View>
+              </View>
+
+              {/* Cuisines */}
+              {worker.cuisine_specializations?.length > 0 && (
+                <View style={{flexDirection:'row', flexWrap:'wrap', gap:4, marginTop:8}}>
+                  {worker.cuisine_specializations.map((c:string) => (
+                    <View key={c} style={s.cuisineTag}>
+                      <Text style={s.cuisineTagText}>{c.replace(/_/g,' ')}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {/* Willing to relocate */}
+              {worker.willing_to_relocate && (
+                <Text style={{marginTop:6, fontSize:12, color:GREEN}}>✈️ Willing to relocate</Text>
+              )}
+
+              {/* Send offer button */}
+              <TouchableOpacity
+                style={[s.btn, {marginTop:12, paddingVertical:10,
+                  backgroundColor: alreadySent ? GREEN : listings.length===0 ? '#ccc' : DARK}]}
+                onPress={() => sendOffer(worker.user_id)}
+                disabled={!!sending || alreadySent || listings.length===0}
+              >
+                {sending === worker.user_id
+                  ? <ActivityIndicator color="#fff"/>
+                  : <Text style={s.btnText}>{alreadySent ? '✓ Offer Sent' : '📩 Send Offer'}</Text>
+                }
+              </TouchableOpacity>
+            </View>
+          );
+        })}
+        {workers.length === 0 && (
+          <View style={s.emptyContainer}>
+            <Text style={s.emptyIcon}>🔍</Text>
+            <Text style={s.emptyText}>No workers found.</Text>
+            <Text style={s.emptySubtext}>Try a different state filter.</Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+
+// ─── Agreement Modal ──────────────────────────────────────────────────────────
+function AgreementScreen({ agreement, userType, onSign, onClose }: {
+  agreement: any;
+  userType: 'worker' | 'owner';
+  onSign: () => void;
+  onClose: () => void;
+}) {
+  const [signed, setSigned]   = useState(false);
+  const [signing, setSigning] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  const isSigned = userType === 'worker'
+    ? !!agreement.worker_signed_at
+    : !!agreement.owner_signed_at;
+  const bothSigned = !!agreement.worker_signed_at && !!agreement.owner_signed_at;
+  const pay = Math.round(agreement.agreed_pay_cents / 100);
+  const startDate = new Date(agreement.start_date).toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
+
+  async function handleSign() {
+    setSigning(true);
+    try {
+      await api.patch(`/agreements/${agreement.agreement_id}/sign`, {});
+      setSigned(true);
+      onSign();
+    } catch(e: any) {
+      alert(e.response?.data?.error ?? 'Failed to sign');
+    } finally { setSigning(false); }
+  }
+
+  return (
+    <View style={ag.container}>
+      {/* Header */}
+      <View style={ag.header}>
+        <TouchableOpacity onPress={onClose} style={ag.closeBtn}>
+          <Text style={ag.closeBtnText}>✕</Text>
+        </TouchableOpacity>
+        <Text style={ag.headerTitle}>Employment Agreement</Text>
+        <View style={[ag.statusPill, {backgroundColor: bothSigned?'#E8F5E9':'#FFF3E0'}]}>
+          <Text style={{fontSize:11,fontWeight:'700',color:bothSigned?GREEN:ORANGE}}>
+            {bothSigned ? 'FULLY EXECUTED' : 'PENDING SIGNATURES'}
+          </Text>
+        </View>
+      </View>
+
+      <ScrollView
+        style={ag.scroll}
+        onScroll={({nativeEvent}) => {
+          const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+          if (layoutMeasurement.height + contentOffset.y >= contentSize.height - 40) {
+            setScrolled(true);
+          }
+        }}
+        scrollEventThrottle={16}
+      >
+        {/* Agreement body */}
+        <View style={ag.body}>
+          <Text style={ag.docTitle}>RASOILINK EMPLOYMENT AGREEMENT</Text>
+          <Text style={ag.docSubtitle}>This agreement is entered into between the following parties:</Text>
+
+          <View style={ag.section}>
+            <Text style={ag.sectionTitle}>🏪 EMPLOYER</Text>
+            <Text style={ag.sectionText}>{agreement.restaurant_name}</Text>
+            <Text style={ag.sectionText}>{agreement.restaurant_address}</Text>
+            <Text style={ag.sectionText}>{agreement.city}, {agreement.state}</Text>
+            <Text style={ag.sectionText}>Represented by: {agreement.owner_name}</Text>
+          </View>
+
+          <View style={ag.section}>
+            <Text style={ag.sectionTitle}>👨‍🍳 EMPLOYEE</Text>
+            <Text style={ag.sectionText}>{agreement.worker_name}</Text>
+            <Text style={ag.sectionText}>📞 {agreement.worker_phone}</Text>
+          </View>
+
+          <View style={ag.section}>
+            <Text style={ag.sectionTitle}>📋 TERMS OF EMPLOYMENT</Text>
+            <View style={ag.termRow}>
+              <Text style={ag.termLabel}>Position</Text>
+              <Text style={ag.termValue}>{agreement.role_code_snapshot?.replace(/_/g,' ').replace(/\b\w/g,(c:string)=>c.toUpperCase())}</Text>
+            </View>
+            <View style={ag.termRow}>
+              <Text style={ag.termLabel}>Start Date</Text>
+              <Text style={ag.termValue}>{startDate}</Text>
+            </View>
+            <View style={ag.termRow}>
+              <Text style={ag.termLabel}>Weekly Pay</Text>
+              <Text style={[ag.termValue,{color:ORANGE,fontWeight:'700'}]}>${pay} per week</Text>
+            </View>
+            <View style={ag.termRow}>
+              <Text style={ag.termLabel}>Pay Day</Text>
+              <Text style={ag.termValue}>{agreement.pay_day?.replace(/\b\w/g,(c:string)=>c.toUpperCase()) ?? 'Friday'}</Text>
+            </View>
+            <View style={ag.termRow}>
+              <Text style={ag.termLabel}>Hours per Week</Text>
+              <Text style={ag.termValue}>{agreement.agreed_hours_pw} hours</Text>
+            </View>
+            <View style={ag.termRow}>
+              <Text style={ag.termLabel}>Notice Period</Text>
+              <Text style={ag.termValue}>{agreement.notice_period_weeks} weeks</Text>
+            </View>
+            <View style={ag.termRow}>
+              <Text style={ag.termLabel}>Accommodation</Text>
+              <Text style={ag.termValue}>{agreement.accommodation_provided ? '✅ Provided' : '❌ Not provided'}</Text>
+            </View>
+            {agreement.accommodation_provided && agreement.accommodation_address && (
+              <View style={ag.termRow}>
+                <Text style={ag.termLabel}>Address</Text>
+                <Text style={ag.termValue}>{agreement.accommodation_address}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={ag.section}>
+            <Text style={ag.sectionTitle}>⚖️ OBLIGATIONS</Text>
+            <Text style={ag.clauseText}>1. The Employer agrees to pay the agreed weekly wage on the specified pay day without delay or deduction without cause.</Text>
+            <Text style={ag.clauseText}>2. The Employee agrees to perform their duties professionally and give the agreed notice period before leaving.</Text>
+            <Text style={ag.clauseText}>3. Both parties agree to treat each other with respect and dignity at all times.</Text>
+            <Text style={ag.clauseText}>4. Any disputes will be mediated through the RasoiLink platform before escalation.</Text>
+            <Text style={ag.clauseText}>5. This agreement is governed by the labor laws of the state of {agreement.state}, USA.</Text>
+          </View>
+
+          {/* Signature status */}
+          <View style={ag.section}>
+            <Text style={ag.sectionTitle}>✍️ SIGNATURES</Text>
+            <View style={ag.sigRow}>
+              <View style={ag.sigBlock}>
+                <Text style={ag.sigLabel}>Owner</Text>
+                <Text style={ag.sigName}>{agreement.owner_name}</Text>
+                {agreement.owner_signed_at
+                  ? <Text style={ag.sigDate}>✅ Signed {new Date(agreement.owner_signed_at).toLocaleDateString()}</Text>
+                  : <Text style={ag.sigPending}>⏳ Pending</Text>
+                }
+              </View>
+              <View style={ag.sigBlock}>
+                <Text style={ag.sigLabel}>Worker</Text>
+                <Text style={ag.sigName}>{agreement.worker_name}</Text>
+                {agreement.worker_signed_at
+                  ? <Text style={ag.sigDate}>✅ Signed {new Date(agreement.worker_signed_at).toLocaleDateString()}</Text>
+                  : <Text style={ag.sigPending}>⏳ Pending</Text>
+                }
+              </View>
+            </View>
+          </View>
+
+          <Text style={ag.legalNote}>
+            By signing this agreement digitally on the RasoiLink platform, both parties acknowledge they have read, understood, and agree to all terms above. This digital signature is legally binding.
+          </Text>
+        </View>
+      </ScrollView>
+
+      {/* Sign button */}
+      <View style={ag.footer}>
+        {!isSigned && !signed ? (
+          <>
+            {!scrolled && <Text style={ag.scrollHint}>↓ Scroll to read the full agreement before signing</Text>}
+            <TouchableOpacity
+              style={[ag.signBtn, !scrolled && ag.signBtnDisabled]}
+              onPress={handleSign}
+              disabled={signing || !scrolled}
+            >
+              {signing
+                ? <ActivityIndicator color="#fff"/>
+                : <Text style={ag.signBtnText}>✍️ Sign Agreement</Text>
+              }
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={ag.signedBanner}>
+            <Text style={ag.signedBannerText}>
+              {bothSigned || signed
+                ? (agreement.worker_signed_at && agreement.owner_signed_at ? '🎉 Agreement fully executed! Both parties have signed.' : '✅ You have signed. Waiting for the other party.')
+                : ''}
+            </Text>
+          </View>
+        )}
+        <TouchableOpacity style={ag.closeFooterBtn} onPress={onClose}>
+          <Text style={ag.closeFooterText}>Close</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+
+// ─── Owner: Agreements Tab ────────────────────────────────────────────────────
+function OwnerAgreementsTab({ user }: { user: any }) {
+  const [agreements, setAgreements] = useState<any[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [selected, setSelected]     = useState<any>(null);
+
+  function load() {
+    setLoading(true);
+    api.get(`/owners/${user.user_id}/agreements`)
+      .then(r => setAgreements(r.data.data ?? []))
+      .finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []);
+
+  if (loading) return <View style={s.center}><ActivityIndicator color={DARK}/></View>;
+
+  if (selected) return (
+    <AgreementScreen
+      agreement={selected}
+      userType="owner"
+      onSign={async () => {
+        const res = await api.get(`/offers/${selected.offer_id}/agreement`);
+        setSelected(res.data.data);
+        load();
+      }}
+      onClose={() => { setSelected(null); load(); }}
+    />
+  );
+
+  return (
+    <ScrollView style={{flex:1}}>
+      <Text style={s.sectionTitle}>Agreements ({agreements.length})</Text>
+      {agreements.length === 0 && (
+        <View style={s.emptyContainer}>
+          <Text style={s.emptyIcon}>📄</Text>
+          <Text style={s.emptyText}>No agreements yet.</Text>
+          <Text style={s.emptySubtext}>Agreements appear here when you accept applicants.</Text>
+        </View>
+      )}
+      {agreements.map((agr: any) => {
+        const ownerSigned  = !!agr.owner_signed_at;
+        const workerSigned = !!agr.worker_signed_at;
+        const bothSigned   = ownerSigned && workerSigned;
+        const needsMySign  = !ownerSigned;
+
+        return (
+          <TouchableOpacity key={agr.agreement_id} style={[s.card, needsMySign && {borderColor: ORANGE, borderWidth:2}]} onPress={() => setSelected(agr)}>
+            <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
+              <View style={{flex:1}}>
+                <Text style={s.cardTitle}>{agr.worker_name}</Text>
+                <Text style={s.cardSub}>📞 {agr.worker_phone}</Text>
+                <Text style={s.cardSub}>🏪 {agr.restaurant_name}</Text>
+              </View>
+              <View style={[s.statusBadge, {
+                backgroundColor: bothSigned?'#E8F5E9': needsMySign?'#FFF3E0':'#E3F2FD',
+                alignSelf:'flex-start'
+              }]}>
+                <Text style={{fontSize:11, fontWeight:'700', color: bothSigned?GREEN: needsMySign?ORANGE:'#1565C0'}}>
+                  {bothSigned?'EXECUTED': needsMySign?'SIGN NOW':'WORKER PENDING'}
+                </Text>
+              </View>
+            </View>
+
+            <View style={{flexDirection:'row', gap:8, marginTop:10}}>
+              <View style={s.offerDetail}>
+                <Text style={s.offerDetailLabel}>💰 Pay</Text>
+                <Text style={s.offerDetailValue}>${Math.round(agr.agreed_pay_cents/100)}/wk</Text>
+              </View>
+              <View style={s.offerDetail}>
+                <Text style={s.offerDetailLabel}>⏱ Hours</Text>
+                <Text style={s.offerDetailValue}>{agr.agreed_hours_pw}h/wk</Text>
+              </View>
+            </View>
+
+            <View style={{flexDirection:'row', marginTop:10, gap:16}}>
+              <Text style={{fontSize:12, color: ownerSigned?GREEN:'#999'}}>
+                {ownerSigned?'✅':'⏳'} You
+              </Text>
+              <Text style={{fontSize:12, color: workerSigned?GREEN:'#999'}}>
+                {workerSigned?'✅':'⏳'} {agr.worker_name.split(' ')[0]}
+              </Text>
+            </View>
+
+            {needsMySign && (
+              <Text style={{marginTop:8, fontSize:12, color:ORANGE, fontWeight:'600'}}>
+                Tap to review and sign →
+              </Text>
+            )}
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const s = StyleSheet.create({
-  center:           {flex:1,justifyContent:'center',alignItems:'center'},
-  authContainer:    {flexGrow:1,padding:24,justifyContent:'center',backgroundColor:'#FFF8F0'},
-  logo:             {fontSize:60,textAlign:'center'},
-  appName:          {fontSize:32,fontWeight:'bold',textAlign:'center',color:ORANGE,marginBottom:4},
-  tagline:          {fontSize:13,textAlign:'center',color:'#888',marginBottom:24},
-  modeToggle:       {flexDirection:'row',backgroundColor:'#eee',borderRadius:10,padding:4,marginBottom:20},
-  modeBtn:          {flex:1,padding:10,borderRadius:8,alignItems:'center'},
-  modeBtnActive:    {backgroundColor:'#fff'},
-  modeBtnText:      {color:'#999',fontWeight:'600'},
-  modeBtnTextActive:{color:DARK},
-  typeToggle:       {flexDirection:'row',gap:8,marginBottom:12},
-  typeBtn:          {flex:1,padding:12,borderRadius:10,alignItems:'center',borderWidth:2,borderColor:'#eee'},
-  typeBtnActive:    {borderColor:ORANGE,backgroundColor:'#FFF3E0'},
-  typeBtnText:      {color:'#999',fontWeight:'600'},
-  typeBtnTextActive:{color:ORANGE},
-  input:            {borderWidth:1,borderColor:'#ddd',borderRadius:10,padding:14,marginBottom:12,fontSize:16,backgroundColor:'#fff'},
-  btn:              {backgroundColor:ORANGE,padding:14,borderRadius:10,alignItems:'center'},
-  btnText:          {color:'#fff',fontSize:15,fontWeight:'bold'},
-  error:            {color:'red',marginBottom:8,textAlign:'center'},
-  appContainer:     {flex:1,backgroundColor:'#F8F9FA'},
-  header:           {backgroundColor:ORANGE,padding:16,paddingTop:50,flexDirection:'row',justifyContent:'space-between',alignItems:'center'},
-  headerText:       {color:'#fff',fontSize:20,fontWeight:'bold'},
-  welcomeText:      {color:'#fff',fontSize:14},
-  tabBar:           {flexDirection:'row',borderTopWidth:1,borderColor:'#eee',backgroundColor:'#fff',paddingBottom:8},
-  tabBtn:           {flex:1,alignItems:'center',paddingTop:8},
-  tabIcon:          {fontSize:22,color:'#bbb'},
-  tabLabel:         {fontSize:11,color:'#bbb',marginTop:2},
-  sectionTitle:     {fontSize:18,fontWeight:'bold',paddingHorizontal:16,paddingTop:16,paddingBottom:8,color:'#333'},
-  card:             {backgroundColor:'#fff',margin:8,marginHorizontal:16,padding:16,borderRadius:12,borderWidth:1,borderColor:'#F0F0F0'},
-  cardTitle:        {fontSize:16,fontWeight:'bold',color:'#333',marginBottom:4},
-  cardSub:          {fontSize:13,color:'#666',marginBottom:2},
-  cardPay:          {fontSize:15,fontWeight:'bold',color:ORANGE,marginTop:2},
-  badge:            {marginTop:6,fontSize:12,color:GREEN},
-  statsRow:         {flexDirection:'row',gap:8},
-  statCard:         {flex:1,backgroundColor:'#fff',padding:14,borderRadius:12,borderLeftWidth:4,borderWidth:1,borderColor:'#F0F0F0'},
-  statNum:          {fontSize:28,fontWeight:'bold',color:DARK},
-  statLabel:        {fontSize:12,color:'#666',marginTop:2},
-  statusBadge:      {paddingHorizontal:8,paddingVertical:3,borderRadius:6},
-  emptyText:        {textAlign:'center',color:'#999',marginTop:40,fontSize:15},
-  formLabel:        {fontSize:13,fontWeight:'600',color:'#555',marginBottom:4},
-  chatScroll:       {flex:1,backgroundColor:'#F8F9FA'},
-  bubble:           {maxWidth:'80%',padding:12,borderRadius:16,marginBottom:8},
-  userBubble:       {backgroundColor:ORANGE,alignSelf:'flex-end',borderBottomRightRadius:4},
-  aiBubble:         {backgroundColor:'#fff',alignSelf:'flex-start',borderBottomLeftRadius:4,borderWidth:1,borderColor:'#eee'},
-  userText:         {color:'#fff',fontSize:14},
-  aiText:           {color:'#333',fontSize:14},
-  typing:           {color:'#999',fontStyle:'italic',marginLeft:8},
-  chatInputRow:     {flexDirection:'row',padding:8,backgroundColor:'#fff',borderTopWidth:1,borderColor:'#eee'},
-  chatTextInput:    {flex:1,borderWidth:1,borderColor:'#ddd',borderRadius:20,paddingHorizontal:14,paddingVertical:8,fontSize:14},
-  sendBtn:          {backgroundColor:ORANGE,borderRadius:20,paddingHorizontal:16,justifyContent:'center',marginLeft:8},
-  profileContainer: {padding:24,alignItems:'center'},
-  profileName:      {fontSize:22,fontWeight:'bold',marginTop:12,color:'#333'},
-  profileRow:       {flexDirection:'row',justifyContent:'space-between',width:'100%',paddingVertical:12,borderBottomWidth:1,borderColor:'#eee'},
-  profileLabel:     {fontSize:15,color:'#666'},
-  profileValue:     {fontSize:15,fontWeight:'600',color:'#333'},
-  logoutBtn:        {marginTop:32,backgroundColor:'#f44336',padding:16,borderRadius:10,width:'100%',alignItems:'center'},
+  center:             {flex:1,justifyContent:'center',alignItems:'center'},
+  langContainer:      {flex:1,backgroundColor:'#FFF8F0',alignItems:'center',paddingTop:60},
+  langLogo:           {fontSize:60},
+  langAppName:        {fontSize:28,fontWeight:'bold',color:ORANGE,marginBottom:8},
+  langTitle:          {fontSize:20,fontWeight:'bold',color:DARK,marginBottom:4},
+  langSubtitle:       {fontSize:13,color:'#888',marginBottom:24,textAlign:'center'},
+  langBtn:            {flexDirection:'row',alignItems:'center',backgroundColor:'#fff',borderRadius:16,padding:18,marginBottom:10,borderWidth:2,borderColor:'#F0F0F0'},
+  langBtnSelected:    {backgroundColor:ORANGE,borderColor:ORANGE},
+  langFlag:           {fontSize:32},
+  langNative:         {fontSize:18,fontWeight:'bold',color:DARK},
+  langEnglish:        {fontSize:13,color:'#888',marginTop:2},
+  langPickerBtn:      {flexDirection:'row',justifyContent:'space-between',alignItems:'center',borderWidth:1,borderColor:'#ddd',borderRadius:10,padding:12,backgroundColor:'#fff'},
+  langPickerDropdown: {borderWidth:1,borderColor:'#ddd',borderRadius:10,backgroundColor:'#fff',marginTop:4,overflow:'hidden'},
+  langPickerItem:     {flexDirection:'row',justifyContent:'space-between',padding:12,borderBottomWidth:1,borderColor:'#f0f0f0'},
+  authContainer:      {flexGrow:1,padding:24,justifyContent:'center',backgroundColor:'#FFF8F0'},
+  logo:               {fontSize:60,textAlign:'center'},
+  appName:            {fontSize:32,fontWeight:'bold',textAlign:'center',color:ORANGE,marginBottom:4},
+  tagline:            {fontSize:13,textAlign:'center',color:'#888',marginBottom:24},
+  modeToggle:         {flexDirection:'row',backgroundColor:'#eee',borderRadius:10,padding:4,marginBottom:20},
+  modeBtn:            {flex:1,padding:10,borderRadius:8,alignItems:'center'},
+  modeBtnActive:      {backgroundColor:'#fff'},
+  modeBtnText:        {color:'#999',fontWeight:'600'},
+  modeBtnTextActive:  {color:DARK},
+  typeToggle:         {flexDirection:'row',gap:8,marginBottom:12},
+  typeBtn:            {flex:1,padding:12,borderRadius:10,alignItems:'center',borderWidth:2,borderColor:'#eee'},
+  typeBtnActive:      {borderColor:ORANGE,backgroundColor:'#FFF3E0'},
+  typeBtnText:        {color:'#999',fontWeight:'600'},
+  typeBtnTextActive:  {color:ORANGE},
+  input:              {borderWidth:1,borderColor:'#ddd',borderRadius:10,padding:14,marginBottom:12,fontSize:16,backgroundColor:'#fff'},
+  btn:                {backgroundColor:ORANGE,padding:14,borderRadius:10,alignItems:'center'},
+  btnText:            {color:'#fff',fontSize:15,fontWeight:'bold'},
+  error:              {color:'red',marginBottom:8,textAlign:'center'},
+  appContainer:       {flex:1,backgroundColor:'#F8F9FA'},
+  header:             {backgroundColor:ORANGE,padding:16,paddingTop:50,flexDirection:'row',justifyContent:'space-between',alignItems:'center'},
+  headerText:         {color:'#fff',fontSize:20,fontWeight:'bold'},
+  welcomeText:        {color:'#fff',fontSize:14},
+  tabBar:             {flexDirection:'row',borderTopWidth:1,borderColor:'#eee',backgroundColor:'#fff',paddingBottom:8},
+  tabBtn:             {flex:1,alignItems:'center',paddingTop:8},
+  tabIcon:            {fontSize:22,color:'#bbb'},
+  tabLabel:           {fontSize:11,color:'#bbb',marginTop:2},
+  sectionTitle:       {fontSize:18,fontWeight:'bold',paddingHorizontal:16,paddingTop:16,paddingBottom:8,color:'#333'},
+  card:               {backgroundColor:'#fff',margin:8,marginHorizontal:16,padding:16,borderRadius:12,borderWidth:1,borderColor:'#F0F0F0'},
+  cardTitle:          {fontSize:16,fontWeight:'bold',color:'#333',marginBottom:4},
+  cardSub:            {fontSize:13,color:'#666',marginBottom:2},
+  cardPay:            {fontSize:15,fontWeight:'bold',color:ORANGE,marginTop:2},
+  badge:              {marginTop:6,fontSize:12,color:GREEN},
+  statsRow:           {flexDirection:'row',gap:8},
+  statCard:           {flex:1,backgroundColor:'#fff',padding:14,borderRadius:12,borderLeftWidth:4,borderWidth:1,borderColor:'#F0F0F0'},
+  statNum:            {fontSize:28,fontWeight:'bold',color:DARK},
+  statLabel:          {fontSize:12,color:'#666',marginTop:2},
+  statusBadge:        {paddingHorizontal:8,paddingVertical:3,borderRadius:6},
+  emptyText:          {textAlign:'center',color:'#999',marginTop:40,fontSize:15},
+  formLabel:          {fontSize:13,fontWeight:'600',color:'#555',marginBottom:4},
+  chatLangBadge:      {backgroundColor:'#FFF3E0',paddingHorizontal:12,paddingVertical:6,borderBottomWidth:1,borderColor:'#FFE0B2',alignItems:'center'},
+  chatLangText:       {fontSize:13,color:ORANGE,fontWeight:'600'},
+  chatScroll:         {flex:1,backgroundColor:'#F8F9FA'},
+  bubble:             {maxWidth:'80%',padding:12,borderRadius:16,marginBottom:8},
+  userBubble:         {backgroundColor:ORANGE,alignSelf:'flex-end',borderBottomRightRadius:4},
+  aiBubble:           {backgroundColor:'#fff',alignSelf:'flex-start',borderBottomLeftRadius:4,borderWidth:1,borderColor:'#eee'},
+  userText:           {color:'#fff',fontSize:14},
+  aiText:             {color:'#333',fontSize:14},
+  typing:             {color:'#999',fontStyle:'italic',marginLeft:8},
+  chatInputRow:       {flexDirection:'row',padding:8,backgroundColor:'#fff',borderTopWidth:1,borderColor:'#eee'},
+  chatTextInput:      {flex:1,borderWidth:1,borderColor:'#ddd',borderRadius:20,paddingHorizontal:14,paddingVertical:8,fontSize:14},
+  sendBtn:            {backgroundColor:ORANGE,borderRadius:20,paddingHorizontal:16,justifyContent:'center',marginLeft:8},
+  profileContainer:   {padding:24,alignItems:'center'},
+  profileName:        {fontSize:22,fontWeight:'bold',marginTop:12,color:'#333'},
+  profileRow:         {flexDirection:'row',justifyContent:'space-between',width:'100%',paddingVertical:12,borderBottomWidth:1,borderColor:'#eee'},
+  profileLabel:       {fontSize:15,color:'#666'},
+  profileValue:       {fontSize:15,fontWeight:'600',color:'#333'},
+  cardAccepted:       {borderColor:'#A5D6A7', borderWidth:2},
+  cardRejected:       {borderColor:'#EF9A9A', borderWidth:2, opacity:0.7},
+  offerDetails:       {flexDirection:'row', flexWrap:'wrap', marginTop:12, gap:8},
+  offerDetail:        {backgroundColor:'#F8F9FA', borderRadius:8, padding:10, minWidth:'45%', flex:1},
+  offerDetailLabel:   {fontSize:11, color:'#888', marginBottom:2},
+  offerDetailValue:   {fontSize:14, fontWeight:'700', color:'#333'},
+  offerDesc:          {marginTop:10, fontSize:13, color:'#555', lineHeight:18},
+  offerExpiry:        {marginTop:8, fontSize:11, color:'#999'},
+  acceptedBanner:     {marginTop:12, backgroundColor:'#E8F5E9', borderRadius:8, padding:12},
+  acceptedBannerText: {color:'#2E7D32', fontSize:13, fontWeight:'600', textAlign:'center'},
+  rejectedBanner:     {marginTop:12, backgroundColor:'#FFEBEE', borderRadius:8, padding:10},
+  rejectedBannerText: {color:'#c62828', fontSize:13, textAlign:'center'},
+  emptyContainer:     {alignItems:'center', marginTop:60},
+  emptyIcon:          {fontSize:50, marginBottom:12},
+  browseHeader:       {backgroundColor:'#fff', padding:16, borderBottomWidth:1, borderColor:'#eee'},
+  browseHeaderLabel:  {fontSize:12, color:'#888', fontWeight:'600'},
+  listingChip:        {paddingHorizontal:14, paddingVertical:8, borderRadius:20, borderWidth:1, borderColor:'#ddd', marginRight:8, backgroundColor:'#fff'},
+  listingChipActive:  {backgroundColor:DARK, borderColor:DARK},
+  listingChipText:    {fontSize:13, color:'#666'},
+  listingChipTextActive:{color:'#fff', fontWeight:'600'},
+  filterBar:          {flexDirection:'row', padding:12, gap:8, backgroundColor:'#F8F9FA', borderBottomWidth:1, borderColor:'#eee'},
+  filterInput:        {flex:1, borderWidth:1, borderColor:'#ddd', borderRadius:8, paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', fontSize:14},
+  cuisineTag:         {backgroundColor:'#FFF3E0', paddingHorizontal:8, paddingVertical:3, borderRadius:12},
+  cuisineTagText:     {fontSize:11, color:ORANGE},
+  emptySubtext:       {fontSize:13, color:'#bbb', textAlign:'center', marginTop:4, paddingHorizontal:40},
+  logoutBtn:          {marginTop:32,backgroundColor:'#f44336',padding:16,borderRadius:10,width:'100%',alignItems:'center'},
+});
+
+const ag = StyleSheet.create({
+  container:      {flex:1, backgroundColor:'#fff'},
+  header:         {backgroundColor:DARK, padding:16, paddingTop:50, alignItems:'center'},
+  closeBtn:       {position:'absolute', top:50, left:16, padding:8},
+  closeBtnText:   {color:'#fff', fontSize:18},
+  headerTitle:    {color:'#fff', fontSize:18, fontWeight:'bold', marginBottom:8},
+  statusPill:     {paddingHorizontal:12, paddingVertical:4, borderRadius:12},
+  scroll:         {flex:1},
+  body:           {padding:20},
+  docTitle:       {fontSize:18, fontWeight:'bold', textAlign:'center', color:DARK, marginBottom:8},
+  docSubtitle:    {fontSize:13, textAlign:'center', color:'#666', marginBottom:24},
+  section:        {marginBottom:24, borderBottomWidth:1, borderColor:'#f0f0f0', paddingBottom:16},
+  sectionTitle:   {fontSize:13, fontWeight:'800', color:DARK, letterSpacing:1, marginBottom:12},
+  sectionText:    {fontSize:14, color:'#444', marginBottom:2},
+  termRow:        {flexDirection:'row', justifyContent:'space-between', paddingVertical:8, borderBottomWidth:1, borderColor:'#f8f8f8'},
+  termLabel:      {fontSize:14, color:'#888'},
+  termValue:      {fontSize:14, fontWeight:'600', color:'#333', textAlign:'right', flex:1, marginLeft:16},
+  clauseText:     {fontSize:13, color:'#555', lineHeight:20, marginBottom:8},
+  sigRow:         {flexDirection:'row', gap:16},
+  sigBlock:       {flex:1, backgroundColor:'#F8F9FA', borderRadius:12, padding:16, alignItems:'center'},
+  sigLabel:       {fontSize:11, color:'#888', fontWeight:'600', marginBottom:4},
+  sigName:        {fontSize:14, fontWeight:'bold', color:DARK, marginBottom:4, textAlign:'center'},
+  sigDate:        {fontSize:12, color:GREEN, fontWeight:'600'},
+  sigPending:     {fontSize:12, color:'#999'},
+  legalNote:      {fontSize:11, color:'#999', textAlign:'center', lineHeight:16, marginTop:8, marginBottom:40},
+  footer:         {padding:16, borderTopWidth:1, borderColor:'#eee', backgroundColor:'#fff'},
+  scrollHint:     {textAlign:'center', color:'#999', fontSize:12, marginBottom:8},
+  signBtn:        {backgroundColor:DARK, padding:16, borderRadius:12, alignItems:'center', marginBottom:8},
+  signBtnDisabled:{backgroundColor:'#ccc'},
+  signBtnText:    {color:'#fff', fontSize:16, fontWeight:'bold'},
+  signedBanner:   {backgroundColor:'#E8F5E9', borderRadius:12, padding:16, marginBottom:8, alignItems:'center'},
+  signedBannerText:{color:'#2E7D32', fontWeight:'600', textAlign:'center'},
+  closeFooterBtn: {padding:12, alignItems:'center'},
+  closeFooterText:{color:'#999', fontSize:14},
 });

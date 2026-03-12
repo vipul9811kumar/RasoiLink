@@ -109,4 +109,31 @@ export async function workerRoutes(app: FastifyInstance) {
 
     return reply.send(data);
   });
+  // GET /workers/search — owner browses available workers
+  app.get('/workers/search', {
+    preHandler: [app.authenticate],
+  }, async (req: any, reply) => {
+    const { state, role_code, limit = 20 } = req.query as any;
+    let where = ["u.user_type = 'worker'", "wp.salary_min_cents > 0"];
+    const params: any[] = [];
+    if (state) { params.push(state); where.push(`wp.current_state = $${params.length}`); }
+    if (role_code) { params.push(role_code); where.push(`wp.role_code = $${params.length}`); }
+    params.push(limit);
+    const result = await query(`
+      SELECT
+        u.user_id, u.name, u.trust_score, u.is_verified,
+        wp.role_code, wp.years_experience, wp.cuisine_specializations,
+        wp.current_state, wp.preferred_states, wp.willing_to_relocate,
+        wp.salary_min_cents, wp.salary_max_cents, wp.needs_accommodation,
+        wp.profile_completeness
+      FROM app.users u
+      JOIN app.worker_profiles wp ON u.user_id = wp.worker_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY u.trust_score DESC, wp.years_experience DESC
+      LIMIT $${params.length}
+    `, params);
+    return reply.send({ success: true, data: result.rows, error: null });
+  });
+
+
 }
