@@ -189,7 +189,7 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any) => void; language
 
 // ─── Worker App ───────────────────────────────────────────────────────────────
 function WorkerApp({ user, language, onLogout, onLanguageChange }: { user: any; language: string; onLogout: () => void; onLanguageChange: (c: string) => void }) {
-  const [tab, setTab] = useState<'jobs'|'offers'|'chat'|'profile'>('jobs');
+  const [tab, setTab] = useState<'jobs'|'offers'|'pay'|'chat'|'profile'>('jobs');
   return (
     <View style={s.appContainer}>
       <View style={s.header}>
@@ -199,17 +199,18 @@ function WorkerApp({ user, language, onLogout, onLanguageChange }: { user: any; 
       <View style={{flex:1}}>
         {tab === 'jobs'    && <JobsTab user={user}/>}
         {tab === 'offers'  && <OffersTab user={user}/>}
+        {tab === 'pay'     && <PayTrustTab user={user}/>}
         {tab === 'chat'    && <ChatTab user={user} language={language}/>}
         {tab === 'profile' && <ProfileTab user={user} language={language} onLogout={onLogout} onLanguageChange={onLanguageChange}/>}
       </View>
-      <TabBar tabs={[{key:'jobs',icon:'💼',label:'Jobs'},{key:'offers',icon:'📩',label:'Offers'},{key:'chat',icon:'💬',label:'Chat'},{key:'profile',icon:'👤',label:'Profile'}]} active={tab} onChange={(t:any)=>setTab(t)}/>
+      <TabBar tabs={[{key:'jobs',icon:'💼',label:'Jobs'},{key:'offers',icon:'📩',label:'Offers'},{key:'pay',icon:'💰',label:'Pay'},{key:'chat',icon:'💬',label:'Chat'},{key:'profile',icon:'👤',label:'Profile'}]} active={tab} onChange={(t:any)=>setTab(t)}/>
     </View>
   );
 }
 
 // ─── Owner App ────────────────────────────────────────────────────────────────
 function OwnerApp({ user, language, onLogout, onLanguageChange }: { user: any; language: string; onLogout: () => void; onLanguageChange: (c: string) => void }) {
-  const [tab, setTab] = useState<'dashboard'|'listings'|'applicants'|'workers'|'agreements'|'profile'>('dashboard');
+  const [tab, setTab] = useState<'dashboard'|'listings'|'applicants'|'workers'|'agreements'|'pay'|'profile'>('dashboard');
   return (
     <View style={s.appContainer}>
       <View style={[s.header, {backgroundColor:DARK}]}>
@@ -222,9 +223,10 @@ function OwnerApp({ user, language, onLogout, onLanguageChange }: { user: any; l
         {tab === 'applicants' && <OwnerApplicants user={user}/>}
         {tab === 'workers'     && <BrowseWorkersTab user={user}/>}
         {tab === 'agreements'  && <OwnerAgreementsTab user={user}/>}
+        {tab === 'pay'         && <OwnerPayTab user={user}/>}
         {tab === 'profile'    && <ProfileTab user={user} language={language} onLogout={onLogout} onLanguageChange={onLanguageChange}/>}
       </View>
-      <TabBar tabs={[{key:'dashboard',icon:'📊',label:'Dashboard'},{key:'listings',icon:'📋',label:'Jobs'},{key:'workers',icon:'🔍',label:'Workers'},{key:'applicants',icon:'👥',label:'Applicants'},{key:'agreements',icon:'📄',label:'Agreements'},{key:'profile',icon:'👤',label:'Profile'}]} active={tab} onChange={(t:any)=>setTab(t)} color={DARK}/>
+      <TabBar tabs={[{key:'dashboard',icon:'📊',label:'Dashboard'},{key:'listings',icon:'📋',label:'Jobs'},{key:'workers',icon:'🔍',label:'Workers'},{key:'applicants',icon:'👥',label:'Applicants'},{key:'agreements',icon:'📄',label:'Agreements'},{key:'pay',icon:'💸',label:'Pay'},{key:'profile',icon:'👤',label:'Profile'}]} active={tab} onChange={(t:any)=>setTab(t)} color={DARK}/>
     </View>
   );
 }
@@ -759,6 +761,224 @@ function OffersTab({ user }: { user: any }) {
 }
 
 
+
+// ─── Worker: Pay & Trust Tab ──────────────────────────────────────────────────
+function PayTrustTab({ user }: { user: any }) {
+  const [pay, setPay]         = useState<any>(null);
+  const [ratings, setRatings] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab]         = useState<'pay'|'trust'>('pay');
+
+  useEffect(() => {
+    Promise.all([
+      api.get(`/workers/${user.user_id}/pay`),
+      api.get(`/workers/${user.user_id}/ratings`),
+    ]).then(([p, r]) => {
+      setPay(p.data.data);
+      setRatings(r.data.data);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  async function confirmPay(cycle_id: string) {
+    await api.patch(`/pay/${cycle_id}/confirm`, {});
+    const res = await api.get(`/workers/${user.user_id}/pay`);
+    setPay(res.data.data);
+  }
+
+  if (loading) return <View style={s.center}><ActivityIndicator color={ORANGE}/></View>;
+
+  const statusColor = (st: string) => ({
+    worker_confirmed: GREEN,
+    owner_confirmed:  '#1565C0',
+    scheduled:        '#888',
+    late:             '#f44336',
+    disputed:         '#E65100',
+    resolved:         GREEN,
+  }[st] ?? '#888');
+
+  const statusLabel = (st: string) => ({
+    worker_confirmed: '✅ Confirmed',
+    owner_confirmed:  '📬 Paid — Confirm?',
+    scheduled:        '⏳ Scheduled',
+    late:             '⚠️ Late',
+    disputed:         '🔴 Disputed',
+    resolved:         '✅ Resolved',
+  }[st] ?? st);
+
+  return (
+    <View style={{flex:1}}>
+      {/* Sub-tab toggle */}
+      <View style={s.subTabBar}>
+        <TouchableOpacity style={[s.subTab, tab==='pay' && s.subTabActive]} onPress={() => setTab('pay')}>
+          <Text style={[s.subTabText, tab==='pay' && s.subTabTextActive]}>💰 Pay History</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.subTab, tab==='trust' && s.subTabActive]} onPress={() => setTab('trust')}>
+          <Text style={[s.subTabText, tab==='trust' && s.subTabTextActive]}>⭐ Trust Score</Text>
+        </TouchableOpacity>
+      </View>
+
+      {tab === 'pay' && pay && (
+        <ScrollView style={{flex:1}}>
+          {/* Summary cards */}
+          <View style={{padding:16, gap:8}}>
+            <View style={s.statsRow}>
+              <View style={[s.statCard, {borderLeftColor:GREEN}]}>
+                <Text style={s.statNum}>${Math.round(pay.summary.totalEarned/100)}</Text>
+                <Text style={s.statLabel}>Total Earned</Text>
+              </View>
+              <View style={[s.statCard, {borderLeftColor:ORANGE}]}>
+                <Text style={s.statNum}>{pay.summary.totalCycles}</Text>
+                <Text style={s.statLabel}>Pay Cycles</Text>
+              </View>
+            </View>
+            <View style={s.statsRow}>
+              <View style={[s.statCard, {borderLeftColor:'#1565C0'}]}>
+                <Text style={s.statNum}>{pay.summary.onTimeCount}</Text>
+                <Text style={s.statLabel}>On Time</Text>
+              </View>
+              <View style={[s.statCard, {borderLeftColor:'#f44336'}]}>
+                <Text style={s.statNum}>{pay.summary.lateCount}</Text>
+                <Text style={s.statLabel}>Late/Disputed</Text>
+              </View>
+            </View>
+          </View>
+
+          <Text style={s.sectionTitle}>Pay Cycles</Text>
+          {pay.cycles.length === 0 && (
+            <View style={s.emptyContainer}>
+              <Text style={s.emptyIcon}>💸</Text>
+              <Text style={s.emptyText}>No pay history yet.</Text>
+              <Text style={s.emptySubtext}>Pay cycles appear once you start working.</Text>
+            </View>
+          )}
+          {pay.cycles.map((cycle: any) => (
+            <View key={cycle.cycle_id} style={s.card}>
+              <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
+                <View>
+                  <Text style={s.cardTitle}>{cycle.restaurant_name}</Text>
+                  <Text style={s.cardSub}>
+                    {new Date(cycle.period_start).toLocaleDateString('en-US',{month:'short',day:'numeric'})} –{" "}
+                    {new Date(cycle.period_end).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+                  </Text>
+                </View>
+                <View style={[s.statusBadge, {backgroundColor: statusColor(cycle.status)+'22'}]}>
+                  <Text style={{fontSize:11, fontWeight:'700', color: statusColor(cycle.status)}}>
+                    {statusLabel(cycle.status)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={s.offerDetails}>
+                <View style={s.offerDetail}>
+                  <Text style={s.offerDetailLabel}>Expected</Text>
+                  <Text style={s.offerDetailValue}>${Math.round(cycle.expected_amount_cents/100)}</Text>
+                </View>
+                <View style={s.offerDetail}>
+                  <Text style={s.offerDetailLabel}>Paid</Text>
+                  <Text style={[s.offerDetailValue, {color: cycle.owner_amount_paid_cents ? GREEN : '#999'}]}>
+                    {cycle.owner_amount_paid_cents ? `$${Math.round(cycle.owner_amount_paid_cents/100)}` : '—'}
+                  </Text>
+                </View>
+                <View style={s.offerDetail}>
+                  <Text style={s.offerDetailLabel}>Due Date</Text>
+                  <Text style={s.offerDetailValue}>{new Date(cycle.due_date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</Text>
+                </View>
+                <View style={s.offerDetail}>
+                  <Text style={s.offerDetailLabel}>Method</Text>
+                  <Text style={s.offerDetailValue}>{cycle.payment_method ?? '—'}</Text>
+                </View>
+              </View>
+
+              {cycle.status === 'owner_confirmed' && (
+                <TouchableOpacity
+                  style={[s.btn, {marginTop:10, paddingVertical:8, backgroundColor:GREEN}]}
+                  onPress={() => confirmPay(cycle.cycle_id)}
+                >
+                  <Text style={s.btnText}>✅ Confirm I received this payment</Text>
+                </TouchableOpacity>
+              )}
+              {cycle.status === 'late' && (
+                <Text style={{marginTop:8, fontSize:12, color:'#f44336', fontWeight:'600'}}>
+                  ⚠️ Payment overdue — contact your employer or raise a dispute
+                </Text>
+              )}
+            </View>
+          ))}
+        </ScrollView>
+      )}
+
+      {tab === 'trust' && ratings && (
+        <ScrollView style={{flex:1}}>
+          {/* Trust score hero */}
+          <View style={s.trustHero}>
+            <Text style={s.trustScore}>{ratings.trust_score ?? '0.0'}</Text>
+            <Text style={s.trustLabel}>Trust Score</Text>
+            <View style={{flexDirection:'row', gap:4, marginTop:4}}>
+              {[1,2,3,4,5].map(i => (
+                <Text key={i} style={{fontSize:20, color: i <= Math.round(ratings.trust_score) ? '#FFD700' : '#ddd'}}> ★</Text>
+              ))}
+            </View>
+            {ratings.is_verified && <Text style={{color:GREEN, marginTop:8, fontWeight:'600'}}>✅ Verified Worker</Text>}
+            <Text style={{color:'#888', marginTop:4, fontSize:13}}>{ratings.total_ratings} ratings</Text>
+          </View>
+
+          {/* Dimension breakdown */}
+          {ratings.total_ratings > 0 && (
+            <View style={{padding:16}}>
+              <Text style={s.sectionTitle}>Score Breakdown</Text>
+              {[
+                {key:'overall',         label:'Overall',          icon:'⭐'},
+                {key:'pay_reliability', label:'Pay Reliability',  icon:'💰'},
+                {key:'communication',   label:'Communication',    icon:'💬'},
+                {key:'reliability',     label:'Reliability',      icon:'🎯'},
+                {key:'skill_level',     label:'Skill Level',      icon:'👨‍🍳'},
+                {key:'punctuality',     label:'Punctuality',      icon:'⏰'},
+              ].filter(d => ratings.averages[d.key] != null).map(dim => {
+                const score = parseFloat(ratings.averages[dim.key]);
+                const pct   = (score / 5) * 100;
+                return (
+                  <View key={dim.key} style={s.dimRow}>
+                    <Text style={s.dimIcon}>{dim.icon}</Text>
+                    <View style={{flex:1, marginLeft:10}}>
+                      <View style={{flexDirection:'row', justifyContent:'space-between', marginBottom:4}}>
+                        <Text style={s.dimLabel}>{dim.label}</Text>
+                        <Text style={s.dimScore}>{ratings.averages[dim.key]}/5</Text>
+                      </View>
+                      <View style={s.dimBar}>
+                        <View style={[s.dimFill, {width:`${pct}%` as any, backgroundColor: score>=4?GREEN:score>=3?ORANGE:'#f44336'}]}/>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
+          {/* Individual ratings */}
+          <Text style={s.sectionTitle}>Reviews</Text>
+          {ratings.ratings.length === 0 && (
+            <View style={s.emptyContainer}>
+              <Text style={s.emptyIcon}>💬</Text>
+              <Text style={s.emptyText}>No reviews yet.</Text>
+              <Text style={s.emptySubtext}>Reviews appear after completing work.</Text>
+            </View>
+          )}
+          {ratings.ratings.map((r: any) => (
+            <View key={r.rating_id} style={s.card}>
+              <View style={{flexDirection:'row', justifyContent:'space-between'}}>
+                <Text style={s.cardTitle}>{r.restaurant_name ?? r.rater_name}</Text>
+                <Text style={{fontSize:20, color:'#FFD700'}}>{'★'.repeat(r.dim_overall)}{'☆'.repeat(5-r.dim_overall)}</Text>
+              </View>
+              <Text style={s.cardSub}>{r.period_month}</Text>
+              {r.private_note && <Text style={{marginTop:6, fontSize:13, color:'#555', fontStyle:'italic'}}>" {r.private_note}"</Text>}
+            </View>
+          ))}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
 // ─── Owner: Browse Workers Tab ────────────────────────────────────────────────
 function BrowseWorkersTab({ user }: { user: any }) {
   const [workers, setWorkers]       = useState<any[]>([]);
@@ -1107,6 +1327,293 @@ function AgreementScreen({ agreement, userType, onSign, onClose }: {
 }
 
 
+
+// ─── Owner: Pay Tab ───────────────────────────────────────────────────────────
+function OwnerPayTab({ user }: { user: any }) {
+  const [pay, setPay]         = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [marking, setMarking]       = useState<string|null>(null);
+  const [showRating, setShowRating] = useState<any>(null);
+  const [ratingForm, setRatingForm] = useState({
+    dim_overall: 0, dim_communication: 0, dim_reliability: 0,
+    dim_skill_level: 0, dim_punctuality: 0,
+  });
+  const [submittingRating, setSubmittingRating] = useState(false);
+  const [showConfirm, setShowConfirm] = useState<any>(null);
+  const [amount, setAmount]   = useState('');
+  const [method, setMethod]   = useState('cash');
+
+  function load() {
+    setLoading(true);
+    api.get(`/owners/${user.user_id}/pay`)
+      .then(r => setPay(r.data.data))
+      .finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []);
+
+  async function markPaid() {
+    if (!showConfirm) return;
+    setMarking(showConfirm.cycle_id);
+    try {
+      await api.patch(`/pay/${showConfirm.cycle_id}/owner-confirm`, {
+        amount_cents: Math.round(parseFloat(amount) * 100),
+        payment_method: method,
+      });
+      setShowConfirm(null);
+      setAmount('');
+      load();
+    } catch(e: any) {
+      alert(e.response?.data?.error ?? 'Failed to mark as paid');
+    } finally { setMarking(null); }
+  }
+
+  if (loading) return <View style={s.center}><ActivityIndicator color={DARK}/></View>;
+
+  const statusColor = (st: string) => ({
+    worker_confirmed: GREEN,
+    owner_confirmed:  '#1565C0',
+    scheduled:        '#888',
+    late:             '#f44336',
+    disputed:         '#E65100',
+    resolved:         GREEN,
+  }[st] ?? '#888');
+
+  const statusLabel = (st: string) => ({
+    worker_confirmed: '✅ Confirmed',
+    owner_confirmed:  '📬 Sent',
+    scheduled:        '⏳ Due',
+    late:             '⚠️ Overdue',
+    disputed:         '🔴 Disputed',
+    resolved:         '✅ Resolved',
+  }[st] ?? st);
+
+  // Pay confirmation modal
+  async function submitRating() {
+    setSubmittingRating(true);
+    try {
+      await api.post('/ratings', {
+        agreement_id:     showRating.agreement_id,
+        rated_id:         showRating.worker_id,
+        period_month:     showRating.period_start.slice(0,7),
+        rater_type:       'owner',
+        dim_overall:       ratingForm.dim_overall,
+        dim_communication: ratingForm.dim_communication,
+        dim_reliability:   ratingForm.dim_reliability,
+        dim_skill_level:   ratingForm.dim_skill_level,
+        dim_punctuality:   ratingForm.dim_punctuality,
+      });
+      setShowRating(null);
+      setRatingForm({ dim_overall:0, dim_communication:0, dim_reliability:0, dim_skill_level:0, dim_punctuality:0 });
+      load();
+    } catch(e: any) {
+      alert(e.response?.data?.error ?? 'Failed to submit rating');
+    } finally { setSubmittingRating(false); }
+  }
+
+  if (showRating) return (
+    <ScrollView style={{flex:1}} contentContainerStyle={{padding:24}}>
+      <Text style={s.sectionTitle}>Rate Worker</Text>
+      <Text style={s.cardSub}>Worker: {showRating.worker_name}</Text>
+      <Text style={[s.cardSub, {marginBottom:20}]}>
+        Period: {new Date(showRating.period_start).toLocaleDateString()} – {new Date(showRating.period_end).toLocaleDateString()}
+      </Text>
+      {([
+        {key:"dim_overall",       label:"Overall Performance", icon:"⭐"},
+        {key:"dim_communication", label:"Communication",       icon:"💬"},
+        {key:"dim_reliability",   label:"Reliability",         icon:"🎯"},
+        {key:"dim_skill_level",   label:"Skill Level",         icon:"👨‍🍳"},
+        {key:"dim_punctuality",   label:"Punctuality",         icon:"⏰"},
+      ] as const).map(dim => (
+        <View key={dim.key} style={{marginBottom:20}}>
+          <Text style={s.formLabel}>{dim.icon} {dim.label}</Text>
+          <View style={{flexDirection:"row", gap:8, marginTop:6}}>
+            {[1,2,3,4,5].map(star => (
+              <TouchableOpacity key={star} onPress={() => setRatingForm(f => ({...f, [dim.key]: star}))} style={{padding:4}}>
+                <Text style={{fontSize:32, color: star <= (ratingForm as any)[dim.key] ? "#FFD700" : "#ddd"}}>★</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {(ratingForm as any)[dim.key] > 0 && (
+            <Text style={{fontSize:12, color:"#888", marginTop:4}}>
+              {["","Poor","Fair","Good","Very Good","Excellent"][(ratingForm as any)[dim.key]]}
+            </Text>
+          )}
+        </View>
+      ))}
+      <View style={{flexDirection:"row", gap:8, marginTop:8}}>
+        <TouchableOpacity style={[s.btn, {flex:1, backgroundColor:"#ccc"}]} onPress={() => setShowRating(null)}>
+          <Text style={[s.btnText, {color:"#333"}]}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.btn, {flex:2, backgroundColor: ratingForm.dim_overall===0?"#ccc":DARK}]}
+          onPress={submitRating}
+          disabled={submittingRating || ratingForm.dim_overall===0}
+        >
+          {submittingRating ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Submit Rating</Text>}
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+
+  if (showConfirm) return (
+    <View style={{flex:1, padding:24, justifyContent:'center', backgroundColor:'#FFF8F0'}}>
+      <Text style={s.sectionTitle}>Mark Pay as Sent</Text>
+      <Text style={s.cardSub}>Worker: {showConfirm.worker_name}</Text>
+      <Text style={[s.cardSub, {marginBottom:20}]}>
+        Period: {new Date(showConfirm.period_start).toLocaleDateString()} – {new Date(showConfirm.period_end).toLocaleDateString()}
+      </Text>
+
+      <Text style={s.formLabel}>Amount Paid ($)</Text>
+      <TextInput
+        style={s.input}
+        placeholder={`Expected: $${Math.round(showConfirm.expected_amount_cents/100)}`}
+        value={amount}
+        onChangeText={setAmount}
+        keyboardType="numeric"
+      />
+
+      <Text style={s.formLabel}>Payment Method</Text>
+      <View style={{flexDirection:'row', gap:8, marginBottom:20}}>
+        {['cash','check','zelle','venmo'].map(m => (
+          <TouchableOpacity
+            key={m}
+            style={[s.typeBtn, method===m && s.typeBtnActive, {flex:1}]}
+            onPress={() => setMethod(m)}
+          >
+            <Text style={[s.typeBtnText, method===m && s.typeBtnTextActive]}>
+              {m.charAt(0).toUpperCase()+m.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <View style={{flexDirection:'row', gap:8}}>
+        <TouchableOpacity style={[s.btn, {flex:1, backgroundColor:'#ccc'}]} onPress={() => setShowConfirm(null)}>
+          <Text style={[s.btnText, {color:'#333'}]}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.btn, {flex:2, backgroundColor:GREEN}]}
+          onPress={markPaid}
+          disabled={!amount || !!marking}
+        >
+          {marking ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>✅ Confirm Payment Sent</Text>}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  return (
+    <ScrollView style={{flex:1}}>
+      {/* Summary */}
+      {pay && (
+        <View style={{padding:16}}>
+          <View style={s.statsRow}>
+            <View style={[s.statCard, {borderLeftColor:GREEN}]}>
+              <Text style={s.statNum}>${Math.round((pay.summary.totalPaid??0)/100)}</Text>
+              <Text style={s.statLabel}>Total Paid</Text>
+            </View>
+            <View style={[s.statCard, {borderLeftColor:'#f44336'}]}>
+              <Text style={s.statNum}>{pay.summary.pendingCount}</Text>
+              <Text style={s.statLabel}>Pending</Text>
+            </View>
+            <View style={[s.statCard, {borderLeftColor:DARK}]}>
+              <Text style={s.statNum}>{pay.summary.totalCycles}</Text>
+              <Text style={s.statLabel}>Total</Text>
+            </View>
+          </View>
+        </View>
+      )}
+
+      <Text style={s.sectionTitle}>Pay Obligations</Text>
+      {pay?.cycles.length === 0 && (
+        <View style={s.emptyContainer}>
+          <Text style={s.emptyIcon}>💸</Text>
+          <Text style={s.emptyText}>No pay cycles yet.</Text>
+          <Text style={s.emptySubtext}>Pay cycles are created when agreements are activated.</Text>
+        </View>
+      )}
+      {pay?.cycles.map((cycle: any) => (
+        <View key={cycle.cycle_id} style={[s.card,
+          cycle.status==='late' && {borderColor:'#f44336', borderWidth:2},
+          cycle.status==='scheduled' && {borderColor:ORANGE, borderWidth:1},
+        ]}>
+          <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
+            <View style={{flex:1}}>
+              <Text style={s.cardTitle}>{cycle.worker_name}</Text>
+              <Text style={s.cardSub}>📞 {cycle.worker_phone}</Text>
+              <Text style={s.cardSub}>
+                {new Date(cycle.period_start).toLocaleDateString('en-US',{month:'short',day:'numeric'})} –{" "}
+                {new Date(cycle.period_end).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}
+              </Text>
+            </View>
+            <View style={[s.statusBadge, {backgroundColor: statusColor(cycle.status)+'22', alignSelf:'flex-start'}]}>
+              <Text style={{fontSize:11, fontWeight:'700', color: statusColor(cycle.status)}}>
+                {statusLabel(cycle.status)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={s.offerDetails}>
+            <View style={s.offerDetail}>
+              <Text style={s.offerDetailLabel}>Expected</Text>
+              <Text style={s.offerDetailValue}>${Math.round(cycle.expected_amount_cents/100)}</Text>
+            </View>
+            <View style={s.offerDetail}>
+              <Text style={s.offerDetailLabel}>Paid</Text>
+              <Text style={[s.offerDetailValue, {color: cycle.owner_amount_paid_cents?GREEN:'#999'}]}>
+                {cycle.owner_amount_paid_cents ? `$${Math.round(cycle.owner_amount_paid_cents/100)}` : '—'}
+              </Text>
+            </View>
+            <View style={s.offerDetail}>
+              <Text style={s.offerDetailLabel}>Due</Text>
+              <Text style={[s.offerDetailValue, {color: cycle.status==='late'?'#f44336':'#333'}]}>
+                {new Date(cycle.due_date).toLocaleDateString('en-US',{month:'short',day:'numeric'})}
+              </Text>
+            </View>
+            <View style={s.offerDetail}>
+              <Text style={s.offerDetailLabel}>Method</Text>
+              <Text style={s.offerDetailValue}>{cycle.payment_method ?? '—'}</Text>
+            </View>
+          </View>
+
+          {(cycle.status==='scheduled'||cycle.status==='late') && (
+            <TouchableOpacity
+              style={[s.btn, {marginTop:10, paddingVertical:8, backgroundColor:DARK}]}
+              onPress={() => { setShowConfirm(cycle); setAmount(String(Math.round(cycle.expected_amount_cents/100))); }}
+            >
+              <Text style={s.btnText}>💸 Mark as Paid</Text>
+            </TouchableOpacity>
+          )}
+          {cycle.status==='owner_confirmed' && (
+            <Text style={{marginTop:8, fontSize:12, color:'#1565C0', fontWeight:'600'}}>
+              📬 Marked as paid — waiting for worker to confirm receipt
+            </Text>
+          )}
+          {cycle.status==='worker_confirmed' && (
+            <View>
+              <Text style={{marginTop:8, fontSize:12, color:GREEN, fontWeight:'600'}}>
+                ✅ Worker confirmed receipt
+              </Text>
+              {cycle.already_rated ? (
+                <View style={[s.btn, {marginTop:8, paddingVertical:8, backgroundColor:'#f0f0f0'}]}>
+                  <Text style={[s.btnText, {color:'#999'}]}>⭐ Already Rated</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={[s.btn, {marginTop:8, paddingVertical:8, backgroundColor:'#FFD700'}]}
+                  onPress={() => setShowRating({...cycle})}
+                >
+                  <Text style={[s.btnText, {color:DARK}]}>⭐ Rate this Worker</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+        </View>
+      ))}
+    </ScrollView>
+  );
+}
+
 // ─── Owner: Agreements Tab ────────────────────────────────────────────────────
 function OwnerAgreementsTab({ user }: { user: any }) {
   const [agreements, setAgreements] = useState<any[]>([]);
@@ -1298,6 +1805,20 @@ const s = StyleSheet.create({
   filterInput:        {flex:1, borderWidth:1, borderColor:'#ddd', borderRadius:8, paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', fontSize:14},
   cuisineTag:         {backgroundColor:'#FFF3E0', paddingHorizontal:8, paddingVertical:3, borderRadius:12},
   cuisineTagText:     {fontSize:11, color:ORANGE},
+  subTabBar:        {flexDirection:'row', backgroundColor:'#fff', borderBottomWidth:1, borderColor:'#eee'},
+  subTab:           {flex:1, padding:14, alignItems:'center'},
+  subTabActive:     {borderBottomWidth:2, borderBottomColor:ORANGE},
+  subTabText:       {fontSize:14, color:'#999', fontWeight:'600'},
+  subTabTextActive: {color:ORANGE},
+  trustHero:        {alignItems:'center', padding:32, backgroundColor:'#fff', borderBottomWidth:1, borderColor:'#eee'},
+  trustScore:       {fontSize:64, fontWeight:'bold', color:DARK},
+  trustLabel:       {fontSize:14, color:'#888', marginTop:4},
+  dimRow:           {flexDirection:'row', alignItems:'center', marginBottom:16},
+  dimIcon:          {fontSize:20, width:30},
+  dimLabel:         {fontSize:14, color:'#555'},
+  dimScore:         {fontSize:14, fontWeight:'700', color:DARK},
+  dimBar:           {height:8, backgroundColor:'#f0f0f0', borderRadius:4, overflow:'hidden'},
+  dimFill:          {height:8, borderRadius:4},
   emptySubtext:       {fontSize:13, color:'#bbb', textAlign:'center', marginTop:4, paddingHorizontal:40},
   logoutBtn:          {marginTop:32,backgroundColor:'#f44336',padding:16,borderRadius:10,width:'100%',alignItems:'center'},
 });
