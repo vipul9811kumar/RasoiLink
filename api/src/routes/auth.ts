@@ -48,6 +48,11 @@ export async function authRoutes(app: FastifyInstance) {
         `INSERT INTO app.worker_profiles (worker_id, role_code, years_experience, current_state, salary_min_cents, salary_max_cents) VALUES ($1, 'kitchen_helper', 0, 'NJ', 140000, 200000)`,
         [user.user_id],
       );
+    } else if (user_type === 'owner') {
+      await query(
+        `INSERT INTO app.owner_profiles (owner_id, restaurant_name, restaurant_address, city, state, zip_code) VALUES ($1, 'My Restaurant', '123 Main St', 'Edison', 'NJ', '08817')`,
+        [user.user_id],
+      );
     }
 
     const token = app.jwt.sign({
