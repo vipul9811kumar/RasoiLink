@@ -1,3 +1,4 @@
+import { createNotification } from './notifications.js';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db.js';
@@ -45,9 +46,22 @@ export async function offerRoutes(app: FastifyInstance) {
       FROM app.listings WHERE listing_id = $1
       RETURNING *
     `, [req.params.id, user_id]);
+    // Notify owner of new application
+    const listingRes = await query('SELECT owner_id, title FROM app.listings WHERE listing_id = $1', [req.params.id]);
+    const workerRes  = await query('SELECT name FROM app.users WHERE user_id = $1', [user_id]);
+    if (listingRes.rows.length) {
+      await createNotification({
+        user_id: listingRes.rows[0].owner_id,
+        event_type: 'new_application',
+        title: '\u{1F468}\u200D\u{1F373} New Application!',
+        body: `${workerRes.rows[0]?.name} applied for ${listingRes.rows[0].title}`,
+        related_entity_id: result.rows[0].offer_id,
+        related_entity_type: 'offer',
+        dedup_key: `apply_${req.params.id}_${user_id}`,
+      });
+    }
     return reply.status(201).send({ success: true, data: result.rows[0], error: null });
   });
-
 
   // POST /listings/:id/offer — owner proactively sends offer to a worker
   app.post('/listings/:id/offer', {
@@ -72,6 +86,18 @@ export async function offerRoutes(app: FastifyInstance) {
       RETURNING *
     `, [listing_id, worker_id]);
 
+    // Notify worker
+    const offerOwnerRes  = await query('SELECT name FROM app.users WHERE user_id = $1', [(req as any).user.user_id]);
+    const offerListingRes = await query('SELECT title FROM app.listings WHERE listing_id = $1', [listing_id]);
+    await createNotification({
+      user_id: worker_id,
+      event_type: 'offer_received',
+      title: '📩 New Job Offer!',
+      body: `${offerOwnerRes.rows[0]?.name} sent you an offer for ${offerListingRes.rows[0]?.title}`,
+      related_entity_id: result.rows[0].offer_id,
+      related_entity_type: 'offer',
+      dedup_key: `offer_${listing_id}_${worker_id}`,
+    });
     return reply.status(201).send({ success: true, data: result.rows[0], error: null });
   });
 
@@ -177,6 +203,20 @@ export async function offerRoutes(app: FastifyInstance) {
       UPDATE app.agreements SET ${col} = now() WHERE agreement_id = $1 RETURNING *
     `, [req.params.id]);
     if (!result.rows.length) return reply.status(404).send({ success: false, error: 'Agreement not found', data: null });
+    const agr = result.rows[0];
+    const signerUserId = (req as any).user.user_id;
+    const signerType   = (req as any).user.user_type;
+    const otherUserId  = signerType === 'worker' ? agr.owner_id : agr.worker_id;
+    const signerRes    = await query('SELECT name FROM app.users WHERE user_id = $1', [signerUserId]);
+    await createNotification({
+      user_id: otherUserId,
+      event_type: 'agreement_signed',
+      title: '✍️ Agreement Signed!',
+      body: `${signerRes.rows[0]?.name} has signed the employment agreement. Please review and sign.`,
+      related_entity_id: agr.agreement_id,
+      related_entity_type: 'agreement',
+      dedup_key: `signed_${agr.agreement_id}_${signerUserId}`,
+    });
     return reply.send({ success: true, data: result.rows[0], error: null });
   });
 

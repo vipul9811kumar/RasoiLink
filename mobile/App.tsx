@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, ScrollView, TextInput
+  ActivityIndicator, Modal, ScrollView, TextInput
 } from 'react-native';
 import { Platform } from 'react-native';
 import axios from 'axios';
@@ -194,7 +194,10 @@ function WorkerApp({ user, language, onLogout, onLanguageChange }: { user: any; 
     <View style={s.appContainer}>
       <View style={s.header}>
         <Text style={s.headerText}>🍳 RasoiLink</Text>
-        <Text style={s.welcomeText}>Namaste, {user.name.split(' ')[0]}!</Text>
+        <View style={{flexDirection:'row', alignItems:'center', gap:12}}>
+          <Text style={s.welcomeText}>Namaste, {user.name.split(' ')[0]}!</Text>
+          <NotificationBell user={user}/>
+        </View>
       </View>
       <View style={{flex:1}}>
         {tab === 'jobs'    && <JobsTab user={user}/>}
@@ -215,7 +218,10 @@ function OwnerApp({ user, language, onLogout, onLanguageChange }: { user: any; l
     <View style={s.appContainer}>
       <View style={[s.header, {backgroundColor:DARK}]}>
         <Text style={s.headerText}>🏪 RasoiLink</Text>
-        <Text style={s.welcomeText}>Owner: {user.name.split(' ')[0]}</Text>
+        <View style={{flexDirection:'row', alignItems:'center', gap:12}}>
+          <Text style={s.welcomeText}>Owner: {user.name.split(' ')[0]}</Text>
+          <NotificationBell user={user}/>
+        </View>
       </View>
       <View style={{flex:1}}>
         {tab === 'dashboard'  && <OwnerDashboard user={user}/>}
@@ -1328,6 +1334,123 @@ function AgreementScreen({ agreement, userType, onSign, onClose }: {
 
 
 
+
+// ─── Notifications Panel ──────────────────────────────────────────────────────
+function NotificationsPanel({ user, onClose }: { user: any; onClose: () => void }) {
+  const [data, setData]       = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  function load() {
+    setLoading(true);
+    api.get('/notifications')
+      .then(r => setData(r.data.data))
+      .finally(() => setLoading(false));
+  }
+  useEffect(() => { load(); }, []);
+
+  async function markAllRead() {
+    await api.patch('/notifications/read-all', {});
+    load();
+  }
+
+  async function markRead(id: string) {
+    await api.patch(`/notifications/${id}/read`, {});
+    load();
+  }
+
+  const eventIcon = (type: string) => ({
+    new_application:  '👨‍🍳',
+    offer_received:   '📩',
+    agreement_signed: '✍️',
+    pay_sent:         '💰',
+    pay_confirmed:    '✅',
+    pay_due:          '⚠️',
+    pay_late:         '🔴',
+  }[type] ?? '🔔');
+
+  return (
+    <View style={{flex:1, backgroundColor:'#fff'}}>
+      {/* Header */}
+      <View style={[s.header, {flexDirection:'row', justifyContent:'space-between', alignItems:'center'}]}>
+        <TouchableOpacity onPress={onClose}>
+          <Text style={{color:'#fff', fontSize:18}}>✕</Text>
+        </TouchableOpacity>
+        <Text style={s.headerText}>🔔 Notifications</Text>
+        <TouchableOpacity onPress={markAllRead}>
+          <Text style={{color:'rgba(255,255,255,0.8)', fontSize:12}}>Mark all read</Text>
+        </TouchableOpacity>
+      </View>
+
+      {loading && <View style={s.center}><ActivityIndicator color={ORANGE}/></View>}
+
+      {!loading && (
+        <ScrollView style={{flex:1}}>
+          {data?.notifications.length === 0 && (
+            <View style={s.emptyContainer}>
+              <Text style={s.emptyIcon}>🔔</Text>
+              <Text style={s.emptyText}>No notifications yet.</Text>
+              <Text style={s.emptySubtext}>You'll see offers, payments and updates here.</Text>
+            </View>
+          )}
+          {data?.notifications.map((n: any) => {
+            const isUnread = n.status === 'sent';
+            return (
+              <TouchableOpacity
+                key={n.notification_id}
+                style={[s.notifItem, isUnread && s.notifItemUnread]}
+                onPress={() => markRead(n.notification_id)}
+              >
+                <Text style={s.notifIcon}>{eventIcon(n.event_type)}</Text>
+                <View style={{flex:1, marginLeft:12}}>
+                  <Text style={[s.notifTitle, isUnread && {fontWeight:'700'}]}>{n.title}</Text>
+                  <Text style={s.notifBody}>{n.body}</Text>
+                  <Text style={s.notifTime}>
+                    {new Date(n.created_at).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}
+                  </Text>
+                </View>
+                {isUnread && <View style={s.notifDot}/>}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+// ─── Notification Bell ────────────────────────────────────────────────────────
+function NotificationBell({ user }: { user: any }) {
+  const [unread, setUnread] = useState(0);
+  const [open, setOpen]     = useState(false);
+
+  useEffect(() => {
+    function fetchUnread() {
+      api.get('/notifications')
+        .then(r => setUnread(r.data.data?.unread ?? 0))
+        .catch(() => {});
+    }
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <>
+      <TouchableOpacity style={s.bellBtn} onPress={() => setOpen(true)}>
+        <Text style={{fontSize:22}}>🔔</Text>
+        {unread > 0 && (
+          <View style={s.bellBadge}>
+            <Text style={s.bellBadgeText}>{unread > 9 ? '9+' : unread}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+      <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
+        <NotificationsPanel user={user} onClose={() => { setOpen(false); setUnread(0); }}/>
+      </Modal>
+    </>
+  );
+}
+
 // ─── Owner: Pay Tab ───────────────────────────────────────────────────────────
 function OwnerPayTab({ user }: { user: any }) {
   const [pay, setPay]         = useState<any>(null);
@@ -1805,6 +1928,16 @@ const s = StyleSheet.create({
   filterInput:        {flex:1, borderWidth:1, borderColor:'#ddd', borderRadius:8, paddingHorizontal:12, paddingVertical:8, backgroundColor:'#fff', fontSize:14},
   cuisineTag:         {backgroundColor:'#FFF3E0', paddingHorizontal:8, paddingVertical:3, borderRadius:12},
   cuisineTagText:     {fontSize:11, color:ORANGE},
+  bellBtn:          {position:'relative', padding:4},
+  bellBadge:        {position:'absolute', top:0, right:0, backgroundColor:'#f44336', borderRadius:8, minWidth:16, height:16, alignItems:'center', justifyContent:'center'},
+  bellBadgeText:    {color:'#fff', fontSize:9, fontWeight:'bold'},
+  notifItem:        {flexDirection:'row', padding:16, borderBottomWidth:1, borderColor:'#f0f0f0', alignItems:'flex-start'},
+  notifItemUnread:  {backgroundColor:'#FFF8F0'},
+  notifIcon:        {fontSize:24, width:36},
+  notifTitle:       {fontSize:14, color:'#333', marginBottom:2},
+  notifBody:        {fontSize:13, color:'#666', lineHeight:18},
+  notifTime:        {fontSize:11, color:'#999', marginTop:4},
+  notifDot:         {width:8, height:8, borderRadius:4, backgroundColor:ORANGE, marginTop:6},
   subTabBar:        {flexDirection:'row', backgroundColor:'#fff', borderBottomWidth:1, borderColor:'#eee'},
   subTab:           {flex:1, padding:14, alignItems:'center'},
   subTabActive:     {borderBottomWidth:2, borderBottomColor:ORANGE},

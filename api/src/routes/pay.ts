@@ -1,3 +1,4 @@
+import { createNotification } from './notifications.js';
 import { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
 
@@ -99,6 +100,17 @@ export async function payRoutes(app: FastifyInstance) {
     if (!result.rows.length) {
       return reply.status(400).send({ success: false, error: 'Cannot confirm — pay not yet marked as sent by owner', data: null });
     }
+    const pcRow2 = result.rows[0];
+    const workerNameRes = await query('SELECT name FROM app.users WHERE user_id = $1', [pcRow2.worker_id]);
+    await createNotification({
+      user_id: pcRow2.owner_id,
+      event_type: 'pay_confirmed',
+      title: '✅ Payment Confirmed!',
+      body: `${workerNameRes.rows[0]?.name} confirmed they received their payment.`,
+      related_entity_id: pcRow2.cycle_id,
+      related_entity_type: 'pay_cycle',
+      dedup_key: `pay_confirmed_${pcRow2.cycle_id}`,
+    });
     return reply.send({ success: true, data: result.rows[0], error: null });
   });
 
@@ -119,6 +131,17 @@ export async function payRoutes(app: FastifyInstance) {
     if (!result.rows.length) {
       return reply.status(400).send({ success: false, error: 'Cannot update pay cycle', data: null });
     }
+    const pcRow = result.rows[0];
+    const ownerNameRes = await query('SELECT name FROM app.users WHERE user_id = $1', [pcRow.owner_id]);
+    await createNotification({
+      user_id: pcRow.worker_id,
+      event_type: 'pay_sent',
+      title: '💰 Payment Sent!',
+      body: `${ownerNameRes.rows[0]?.name} marked your payment of $${Math.round(amount_cents/100)} as sent.`,
+      related_entity_id: pcRow.cycle_id,
+      related_entity_type: 'pay_cycle',
+      dedup_key: `pay_sent_${pcRow.cycle_id}`,
+    });
     return reply.send({ success: true, data: result.rows[0], error: null });
   });
 
