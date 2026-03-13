@@ -111,4 +111,46 @@ export async function listingRoutes(app: FastifyInstance) {
     }
     return reply.send({ success: true, data: result.rows[0], error: null });
   });
+
+  // GET /listings/:id/score — get match score for logged-in worker
+  app.get<{ Params: { id: string } }>('/listings/:id/score', {
+    preHandler: [app.authenticate],
+  }, async (req: any, reply) => {
+    const worker_id = req.user.user_id;
+    try {
+      const resp = await fetch(
+        `${process.env.MATCH_ENGINE_URL}/score/${worker_id}/${req.params.id}`
+      );
+      const data = await resp.json() as any;
+      return reply.send({
+        success: true,
+        data: {
+          score: data.data?.total_score ?? null,
+          breakdown: data.data?.score_breakdown ?? null,
+        },
+        error: null,
+      });
+    } catch {
+      return reply.send({ success: true, data: { score: null }, error: null });
+    }
+  });
+
+  // POST /workers/:id/matches — get top job matches for a worker
+  app.post<{ Params: { id: string } }>('/workers/:id/matches', {
+    preHandler: [app.authenticate],
+  }, async (req: any, reply) => {
+    const worker_id = req.params.id;
+    try {
+      const resp = await fetch(`${process.env.MATCH_ENGINE_URL}/matches/worker`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ worker_id, limit: 20, min_score: 0 }),
+      });
+      const data = await resp.json() as any;
+      return reply.send({ success: true, data: data.data, error: null });
+    } catch {
+      return reply.send({ success: false, data: null, error: 'Match engine unavailable' });
+    }
+  });
+
 }

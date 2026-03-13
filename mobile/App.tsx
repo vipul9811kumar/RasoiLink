@@ -478,9 +478,25 @@ function JobsTab({ user }: { user: any }) {
   const [loading, setLoading]     = useState(true);
   const [applying, setApplying]   = useState<string|null>(null);
   const [applied, setApplied]     = useState<Set<string>>(new Set());
+  const [scores, setScores]       = useState<Record<string,number|null>>({});
 
   useEffect(()=>{
-    api.get('/listings').then(r=>setJobs(r.data.data??[])).finally(()=>setLoading(false));
+    api.get('/listings').then(r=>{
+      const lst = r.data.data ?? [];
+      setJobs(lst);
+      setLoading(false);
+      Promise.all(
+        lst.map((l: any) =>
+          api.get(`/listings/${l.listing_id}/score`)
+            .then((sr:any) => ({ id: l.listing_id, score: sr.data.data?.score ?? null }))
+            .catch(() => ({ id: l.listing_id, score: null }))
+        )
+      ).then((results: any[]) => {
+        const map: Record<string,number|null> = {};
+        results.forEach((r:any) => { map[r.id] = r.score; });
+        setScores(map);
+      });
+    }).catch(()=>setLoading(false));
   },[]);
 
   async function apply(listing_id: string) {
@@ -498,8 +514,25 @@ function JobsTab({ user }: { user: any }) {
     <ScrollView style={{flex:1}}>
       <Text style={s.sectionTitle}>Active Jobs</Text>
       {jobs.map((job:any) => (
-        <View key={job.listing_id} style={s.card}>
-          <Text style={s.cardTitle}>{job.title}</Text>
+        <View key={job.listing_id} style={[s.card, scores[job.listing_id] != null && scores[job.listing_id]! >= 80 ? {borderLeftColor:GREEN, borderLeftWidth:3} : {}]}>
+          <View style={{flexDirection:'row', justifyContent:'space-between', alignItems:'flex-start'}}>
+            <Text style={[s.cardTitle, {flex:1}]}>{job.title}</Text>
+            {scores[job.listing_id] != null ? (
+              <View style={[s.statusBadge, {backgroundColor:
+                scores[job.listing_id]! >= 80 ? GREEN+'22' :
+                scores[job.listing_id]! >= 60 ? ORANGE+'22' : '#88888822'
+              }]}>
+                <Text style={{fontSize:12, fontWeight:'700', color:
+                  scores[job.listing_id]! >= 80 ? GREEN :
+                  scores[job.listing_id]! >= 60 ? ORANGE : '#888'
+                }}>{scores[job.listing_id]}% match</Text>
+              </View>
+            ) : (
+              <View style={[s.statusBadge, {backgroundColor:'#f0f0f0'}]}>
+                <Text style={{fontSize:10, color:'#ccc'}}>scoring...</Text>
+              </View>
+            )}
+          </View>
           <Text style={s.cardSub}>{job.restaurant_name} • {job.city}, {job.state}</Text>
           <Text style={s.cardPay}>${Math.round(job.pay_min_cents/100)}–${Math.round(job.pay_max_cents/100)}/week</Text>
           {job.accommodation_provided && <Text style={s.badge}>🏠 Accommodation included</Text>}
