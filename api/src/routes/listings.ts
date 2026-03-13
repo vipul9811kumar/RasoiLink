@@ -116,6 +116,18 @@ export async function listingRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>('/listings/:id/score', {
     preHandler: [app.authenticate],
   }, async (req: any, reply) => {
+    // Only verified owners can post jobs
+    const ownerCheck = await query(
+      'SELECT is_verified FROM app.users WHERE user_id = $1',
+      [req.user.user_id]
+    );
+    if (!ownerCheck.rows[0]?.is_verified) {
+      return reply.status(403).send({
+        success: false,
+        error: 'Please verify your phone number before posting jobs.',
+        data: null,
+      });
+    }
     const worker_id = req.user.user_id;
     try {
       const resp = await fetch(

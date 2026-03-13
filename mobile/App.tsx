@@ -133,6 +133,35 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any) => void; language
   const [userType, setUserType] = useState<'worker'|'owner'>('worker');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
+  const [otpStep, setOtpStep]   = useState(false);
+  const [otp, setOtp]           = useState('');
+  const [otpSent, setOtpSent]   = useState(false);
+
+  async function sendOtp() {
+    setLoading(true); setError('');
+    try {
+      const res = await api.post('/auth/send-otp', { phone, purpose: 'verify' });
+      setOtpSent(true);
+      setOtpStep(true);
+      if (res.data.data?.dev_code) {
+        setError(`Dev OTP: ${res.data.data.dev_code}`);
+      }
+    } catch(e: any) {
+      setError(e.response?.data?.error ?? 'Failed to send OTP');
+    } finally { setLoading(false); }
+  }
+
+  async function verifyOtpAndRegister() {
+    setLoading(true); setError('');
+    try {
+      await api.post('/auth/verify-otp', { phone, code: otp, purpose: 'verify' });
+      const res = await api.post('/auth/register', { phone, password, name, user_type: userType, language_code: language });
+      await TokenStore.set('auth_token', res.data.data.token);
+      onLogin(res.data.data.user);
+    } catch(e: any) {
+      setError(e.response?.data?.error ?? 'Verification failed');
+    } finally { setLoading(false); }
+  }
 
   async function handleSubmit() {
     setLoading(true); setError('');
@@ -140,6 +169,12 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any) => void; language
       let res;
       if (mode === 'login') {
         res = await api.post('/auth/login', { phone, password });
+      } else if (userType === 'owner' && !otpSent) {
+        setLoading(false);
+        return sendOtp();
+      } else if (userType === 'owner' && otpStep) {
+        setLoading(false);
+        return verifyOtpAndRegister();
       } else {
         res = await api.post('/auth/register', { phone, password, name, user_type: userType, language_code: language });
       }
@@ -177,11 +212,38 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any) => void; language
         </>
       )}
 
-      <TextInput style={s.input} placeholder="Phone (+12015550304)" value={phone} onChangeText={setPhone} keyboardType="phone-pad" autoCapitalize="none"/>
+      <TextInput style={s.input} placeholder="+1 (555) 000-0000" value={phone} onChangeText={v => setPhone(v.replace(/[^0-9+]/g,""))} keyboardType="phone-pad" autoCapitalize="none"/>
+      <Text style={{fontSize:11,color:"#999",marginTop:-8,marginBottom:8,alignSelf:"flex-start"}}>Format: +1 followed by 10 digits (e.g. +12015550101)</Text>
       <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry/>
-      {error ? <Text style={s.error}>{error}</Text> : null}
+      {error ? <Text style={[s.error, error.startsWith('Dev OTP') ? {color:GREEN} : {}]}>{error}</Text> : null}
+      {mode === 'register' && userType === 'owner' && otpStep && (
+        <View style={{width:'100%', marginBottom:12}}>
+          <Text style={{fontSize:13, color:'#666', marginBottom:8, textAlign:'center'}}>
+            📱 Enter the 6-digit OTP sent to {phone}
+          </Text>
+          <TextInput
+            style={[s.input, {textAlign:'center', fontSize:24, letterSpacing:8, fontWeight:'700'}]}
+            placeholder="000000"
+            value={otp}
+            onChangeText={setOtp}
+            keyboardType="numeric"
+            maxLength={6}
+          />
+          <TouchableOpacity onPress={sendOtp}>
+            <Text style={{textAlign:'center', color:ORANGE, fontSize:13, marginTop:4}}>Resend OTP</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       <TouchableOpacity style={s.btn} onPress={handleSubmit} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>{mode==='login'?'Login':'Create Account'}</Text>}
+        {loading
+          ? <ActivityIndicator color="#fff"/>
+          : <Text style={s.btnText}>
+              {mode === 'login' ? 'Login' :
+               userType === 'owner' && !otpSent ? '📱 Send OTP to Verify' :
+               userType === 'owner' && otpStep ? '✅ Verify & Register' :
+               'Create Account'}
+            </Text>
+        }
       </TouchableOpacity>
     </ScrollView>
   );
