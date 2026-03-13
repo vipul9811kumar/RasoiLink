@@ -2,19 +2,18 @@ export interface ApiResponse<T> {
   success: boolean;
   data: T | null;
   error: string | null;
-  meta: {
-    timestamp: string;
-    duration_ms: number;
-  };
 }
 
 export interface AuthUser {
   user_id: string;
-  user_type: 'worker' | 'owner' | 'admin';
+  user_type: string;
   phone: string;
 }
 
 declare module 'fastify' {
+  interface FastifyInstance {
+    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+  }
   interface FastifyRequest {
     user?: AuthUser;
   }
