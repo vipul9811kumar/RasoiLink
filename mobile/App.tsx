@@ -190,6 +190,7 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any) => void; language
 // ─── Worker App ───────────────────────────────────────────────────────────────
 function WorkerApp({ user, language, onLogout, onLanguageChange }: { user: any; language: string; onLogout: () => void; onLanguageChange: (c: string) => void }) {
   const [tab, setTab] = useState<'jobs'|'offers'|'pay'|'chat'|'profile'>('jobs');
+  const [showProfileEditor, setShowProfileEditor] = useState(false);
   return (
     <View style={s.appContainer}>
       <View style={s.header}>
@@ -569,6 +570,7 @@ function ChatTab({ user, language }: { user: any; language: string }) {
 // ─── Shared: Profile Tab ──────────────────────────────────────────────────────
 function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any; language: string; onLogout: ()=>void; onLanguageChange: (c:string)=>void }) {
   const isOwner = user.user_type==='owner';
+  const [showEditor, setShowEditor] = useState(false);
   return (
     <ScrollView contentContainerStyle={s.profileContainer}>
       <Text style={{fontSize:60,marginTop:20}}>{isOwner?'🏪':'👤'}</Text>
@@ -591,9 +593,22 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
           <Text style={s.profileValue}>{v}</Text>
         </View>
       ))}
+      {!isOwner && (
+        <TouchableOpacity
+          style={[s.btn, {backgroundColor:ORANGE, width:'100%', marginBottom:12}]}
+          onPress={() => setShowEditor(true)}
+        >
+          <Text style={s.btnText}>✏️ Edit My Profile</Text>
+        </TouchableOpacity>
+      )}
       <TouchableOpacity style={s.logoutBtn} onPress={onLogout}>
         <Text style={{color:'#fff',fontSize:16,fontWeight:'bold'}}>Logout</Text>
       </TouchableOpacity>
+      {!isOwner && (
+        <Modal visible={showEditor} animationType="slide" onRequestClose={() => setShowEditor(false)}>
+          <WorkerProfileEditor user={user} onClose={() => setShowEditor(false)}/>
+        </Modal>
+      )}
     </ScrollView>
   );
 }
@@ -1334,6 +1349,300 @@ function AgreementScreen({ agreement, userType, onSign, onClose }: {
 
 
 
+
+
+// ─── Worker: Profile Editor ───────────────────────────────────────────────────
+function WorkerProfileEditor({ user, onClose }: { user: any; onClose: () => void }) {
+  const ROLES = [
+    'assistant_manager','biryani_chef','cashier','curry_chef','delivery_driver',
+    'dishwasher','head_chef','host','kitchen_helper','line_cook','manager',
+    'owner_operator','pastry_mithai','prep_cook','server','sous_chef','tandoor_chef'
+  ];
+  const ROLE_LABELS: any = {
+    assistant_manager:'Assistant Manager', biryani_chef:'Biryani Chef', cashier:'Cashier',
+    curry_chef:'Curry Chef', delivery_driver:'Delivery Driver', dishwasher:'Dishwasher',
+    head_chef:'Head Chef', host:'Host/Hostess', kitchen_helper:'Kitchen Helper',
+    line_cook:'Line Cook', manager:'Manager', owner_operator:'Owner/Operator',
+    pastry_mithai:'Pastry/Mithai', prep_cook:'Prep Cook', server:'Server',
+    sous_chef:'Sous Chef', tandoor_chef:'Tandoor Chef',
+  };
+  const CUISINES = [
+    'tandoor','north_indian','south_indian','biryani','punjabi','gujarati',
+    'hyderabadi','kerala','chettinad','mughlai','mithai',
+  ];
+  const CUISINE_LABELS: any = {
+    tandoor:'Tandoor', north_indian:'North Indian', south_indian:'South Indian',
+    biryani:'Biryani', punjabi:'Punjabi', gujarati:'Gujarati',
+    hyderabadi:'Hyderabadi', kerala:'Kerala', chettinad:'Chettinad',
+    mughlai:'Mughlai', mithai:'Mithai/Sweets',
+  };
+  const STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA',
+    'KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY',
+    'NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
+  const PAY_FREQ = [{value:'weekly',label:'Weekly'},{value:'biweekly',label:'Bi-weekly'},{value:'semimonthly',label:'Semi-monthly'}];
+  const WORK_AUTH = [
+    {value:'authorized',label:'US Authorized'},{value:'h2b',label:'H2B Visa'},
+    {value:'ead',label:'EAD'},{value:'opt',label:'OPT'},{value:'other',label:'Other'},
+  ];
+
+  const [loading, setLoading]   = useState(true);
+  const [saving, setSaving]     = useState(false);
+  const [form, setForm]         = useState<any>(null);
+
+  useEffect(() => {
+    api.get(`/workers/${user.user_id}`)
+      .then(r => {
+        const p = r.data.data;
+        setForm({
+          role_code:               p.role_code ?? 'kitchen_helper',
+          years_experience:        String(p.years_experience ?? 0),
+          cuisine_specializations: p.cuisine_specializations ?? [],
+          current_city:            p.current_city ?? '',
+          current_state:           p.current_state ?? 'NJ',
+          preferred_states:        p.preferred_states ?? [],
+          willing_to_relocate:     p.willing_to_relocate ?? true,
+          salary_min:              String(Math.round((p.salary_min_cents ?? 60000) / 100)),
+          salary_max:              String(Math.round((p.salary_max_cents ?? 80000) / 100)),
+          pay_freq_pref:           p.pay_freq_pref ?? 'weekly',
+          needs_accommodation:     p.needs_accommodation ?? false,
+          work_authorization:      p.work_authorization ?? 'authorized',
+          bio_text:                p.bio_text ?? '',
+        });
+      })
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.patch(`/workers/${user.user_id}`, {
+        role_code:               form.role_code,
+        years_experience:        parseInt(form.years_experience) || 0,
+        cuisine_specializations: form.cuisine_specializations,
+        current_city:            form.current_city,
+        current_state:           form.current_state,
+        preferred_states:        form.preferred_states,
+        willing_to_relocate:     form.willing_to_relocate,
+        salary_min_cents:        Math.round(parseFloat(form.salary_min) * 100),
+        salary_max_cents:        Math.round(parseFloat(form.salary_max) * 100),
+        pay_freq_pref:           form.pay_freq_pref,
+        needs_accommodation:     form.needs_accommodation,
+        work_authorization:      form.work_authorization,
+        bio_text:                form.bio_text,
+      });
+      alert('Profile updated!');
+      onClose();
+    } catch(e: any) {
+      alert(e.response?.data?.error ?? 'Failed to save');
+    } finally { setSaving(false); }
+  }
+
+  function toggleArr(arr: string[], val: string) {
+    return arr.includes(val) ? arr.filter((x:string) => x !== val) : [...arr, val];
+  }
+
+  if (loading) return <View style={s.center}><ActivityIndicator color={ORANGE}/></View>;
+
+  return (
+    <View style={{flex:1, backgroundColor:'#FFF8F0'}}>
+      {/* Header */}
+      <View style={[s.header, {flexDirection:'row', alignItems:'center', justifyContent:'space-between'}]}>
+        <TouchableOpacity onPress={onClose}>
+          <Text style={{color:'#fff', fontSize:18}}>✕</Text>
+        </TouchableOpacity>
+        <Text style={s.headerText}>Edit Profile</Text>
+        <TouchableOpacity onPress={save} disabled={saving}>
+          {saving ? <ActivityIndicator color="#fff" size="small"/> : <Text style={{color:'#fff', fontWeight:'700'}}>Save</Text>}
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView style={{flex:1}} contentContainerStyle={{padding:16, paddingBottom:40}}>
+
+        {/* Role */}
+        <Text style={s.sectionTitle}>👨‍🍳 Your Role</Text>
+        <View style={{flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:20}}>
+          {ROLES.map(r => (
+            <TouchableOpacity
+              key={r}
+              style={[s.typeBtn, form.role_code===r && s.typeBtnActive]}
+              onPress={() => setForm((f:any) => ({...f, role_code: r}))}
+            >
+              <Text style={[s.typeBtnText, form.role_code===r && s.typeBtnTextActive]}>
+                {ROLE_LABELS[r]}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Experience */}
+        <Text style={s.sectionTitle}>📅 Years of Experience</Text>
+        <View style={{flexDirection:'row', gap:8, marginBottom:20, flexWrap:'wrap'}}>
+          {['0','1','2','3','4','5','6','7','8','10','12','15','20'].map(y => (
+            <TouchableOpacity
+              key={y}
+              style={[s.typeBtn, form.years_experience===y && s.typeBtnActive, {minWidth:48}]}
+              onPress={() => setForm((f:any) => ({...f, years_experience: y}))}
+            >
+              <Text style={[s.typeBtnText, form.years_experience===y && s.typeBtnTextActive]}>{y}yr</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Cuisines */}
+        <Text style={s.sectionTitle}>🍛 Cuisine Specializations</Text>
+        <View style={{flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:20}}>
+          {CUISINES.map(c => (
+            <TouchableOpacity
+              key={c}
+              style={[s.typeBtn, form.cuisine_specializations.includes(c) && s.typeBtnActive]}
+              onPress={() => setForm((f:any) => ({...f, cuisine_specializations: toggleArr(f.cuisine_specializations, c)}))}
+            >
+              <Text style={[s.typeBtnText, form.cuisine_specializations.includes(c) && s.typeBtnTextActive]}>
+                {CUISINE_LABELS[c]}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Location */}
+        <Text style={s.sectionTitle}>📍 Current Location</Text>
+        <TextInput
+          style={[s.input, {marginBottom:8}]}
+          placeholder="City"
+          value={form.current_city}
+          onChangeText={v => setForm((f:any) => ({...f, current_city: v}))}
+        />
+        <View style={{flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:20}}>
+          {STATES.map(st => (
+            <TouchableOpacity
+              key={st}
+              style={[s.typeBtn, form.current_state===st && s.typeBtnActive, {minWidth:44, paddingHorizontal:8}]}
+              onPress={() => setForm((f:any) => ({...f, current_state: st}))}
+            >
+              <Text style={[s.typeBtnText, form.current_state===st && s.typeBtnTextActive, {fontSize:11}]}>{st}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Preferred States */}
+        <Text style={s.sectionTitle}>🗺️ Preferred Work States</Text>
+        <Text style={{fontSize:12, color:'#888', marginBottom:8}}>Select all states you are willing to work in</Text>
+        <View style={{flexDirection:'row', flexWrap:'wrap', gap:6, marginBottom:8}}>
+          {STATES.map(st => (
+            <TouchableOpacity
+              key={st}
+              style={[s.typeBtn, form.preferred_states.includes(st) && s.typeBtnActive, {minWidth:44, paddingHorizontal:8}]}
+              onPress={() => setForm((f:any) => ({...f, preferred_states: toggleArr(f.preferred_states, st)}))}
+            >
+              <Text style={[s.typeBtnText, form.preferred_states.includes(st) && s.typeBtnTextActive, {fontSize:11}]}>{st}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TouchableOpacity
+          style={[s.typeBtn, form.willing_to_relocate && s.typeBtnActive, {marginBottom:20, alignSelf:'flex-start'}]}
+          onPress={() => setForm((f:any) => ({...f, willing_to_relocate: !f.willing_to_relocate}))}
+        >
+          <Text style={[s.typeBtnText, form.willing_to_relocate && s.typeBtnTextActive]}>
+            {form.willing_to_relocate ? '✅ Willing to Relocate' : '❌ Not Willing to Relocate'}
+          </Text>
+        </TouchableOpacity>
+
+        {/* Salary */}
+        <Text style={s.sectionTitle}>💵 Expected Salary (per week)</Text>
+        <View style={{flexDirection:'row', gap:12, marginBottom:20}}>
+          <View style={{flex:1}}>
+            <Text style={s.formLabel}>Minimum ($)</Text>
+            <TextInput
+              style={s.input}
+              placeholder="600"
+              value={form.salary_min}
+              onChangeText={v => setForm((f:any) => ({...f, salary_min: v}))}
+              keyboardType="numeric"
+            />
+          </View>
+          <View style={{flex:1}}>
+            <Text style={s.formLabel}>Maximum ($)</Text>
+            <TextInput
+              style={s.input}
+              placeholder="800"
+              value={form.salary_max}
+              onChangeText={v => setForm((f:any) => ({...f, salary_max: v}))}
+              keyboardType="numeric"
+            />
+          </View>
+        </View>
+
+        {/* Pay Frequency */}
+        <Text style={s.sectionTitle}>📆 Pay Frequency Preference</Text>
+        <View style={{flexDirection:'row', gap:8, marginBottom:20}}>
+          {PAY_FREQ.map(p => (
+            <TouchableOpacity
+              key={p.value}
+              style={[s.typeBtn, form.pay_freq_pref===p.value && s.typeBtnActive, {flex:1}]}
+              onPress={() => setForm((f:any) => ({...f, pay_freq_pref: p.value}))}
+            >
+              <Text style={[s.typeBtnText, form.pay_freq_pref===p.value && s.typeBtnTextActive]}>{p.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Accommodation */}
+        <Text style={s.sectionTitle}>🏠 Accommodation</Text>
+        <View style={{flexDirection:'row', gap:8, marginBottom:20}}>
+          <TouchableOpacity
+            style={[s.typeBtn, !form.needs_accommodation && s.typeBtnActive, {flex:1}]}
+            onPress={() => setForm((f:any) => ({...f, needs_accommodation: false}))}
+          >
+            <Text style={[s.typeBtnText, !form.needs_accommodation && s.typeBtnTextActive]}>I have housing</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.typeBtn, form.needs_accommodation && s.typeBtnActive, {flex:1}]}
+            onPress={() => setForm((f:any) => ({...f, needs_accommodation: true}))}
+          >
+            <Text style={[s.typeBtnText, form.needs_accommodation && s.typeBtnTextActive]}>Need accommodation</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Work Authorization */}
+        <Text style={s.sectionTitle}>📋 Work Authorization</Text>
+        <View style={{flexDirection:'row', flexWrap:'wrap', gap:8, marginBottom:20}}>
+          {WORK_AUTH.map(w => (
+            <TouchableOpacity
+              key={w.value}
+              style={[s.typeBtn, form.work_authorization===w.value && s.typeBtnActive]}
+              onPress={() => setForm((f:any) => ({...f, work_authorization: w.value}))}
+            >
+              <Text style={[s.typeBtnText, form.work_authorization===w.value && s.typeBtnTextActive]}>{w.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Bio */}
+        <Text style={s.sectionTitle}>📝 About Me</Text>
+        <TextInput
+          style={[s.input, {height:100, textAlignVertical:'top', marginBottom:20}]}
+          placeholder="Tell employers about yourself, your experience and what you are looking for..."
+          value={form.bio_text}
+          onChangeText={v => setForm((f:any) => ({...f, bio_text: v}))}
+          multiline
+        />
+
+        {/* Save Button */}
+        <TouchableOpacity
+          style={[s.btn, {backgroundColor: ORANGE, marginBottom:20}]}
+          onPress={save}
+          disabled={saving}
+        >
+          {saving
+            ? <ActivityIndicator color="#fff"/>
+            : <Text style={s.btnText}>💾 Save Profile</Text>
+          }
+        </TouchableOpacity>
+
+      </ScrollView>
+    </View>
+  );
+}
 
 // ─── Notifications Panel ──────────────────────────────────────────────────────
 function NotificationsPanel({ user, onClose }: { user: any; onClose: () => void }) {
