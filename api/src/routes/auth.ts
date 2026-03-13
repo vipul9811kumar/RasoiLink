@@ -33,11 +33,18 @@ export async function authRoutes(app: FastifyInstance) {
     }
 
     const password_hash = await bcrypt.hash(password, 10);
+    // Check if phone was already OTP-verified
+    const otpVerified = await query(
+      `SELECT 1 FROM app.otps WHERE phone = $1 AND purpose = 'verify' AND used_at IS NOT NULL ORDER BY created_at DESC LIMIT 1`,
+      [phone]
+    );
+    const isVerified = otpVerified.rows.length > 0;
+
     const result = await query(
-      `INSERT INTO app.users (phone, name, user_type, language_code, password_hash)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING user_id, phone, name, user_type, language_code, created_at`,
-      [phone, name, user_type, language_code, password_hash],
+      `INSERT INTO app.users (phone, name, user_type, language_code, password_hash, is_verified)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING user_id, phone, name, user_type, language_code, is_verified, trust_score, created_at`,
+      [phone, name, user_type, language_code, password_hash, isVerified],
     );
 
     const user = result.rows[0];
