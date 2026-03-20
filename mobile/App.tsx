@@ -92,11 +92,6 @@ export default function App() {
 function LanguageSelector({ onSelect }: { onSelect: (code: string) => void }) {
   const [selected, setSelected] = useState<string|null>(null);
 
-  function choose(code: string) {
-    setSelected(code);
-    setTimeout(() => onSelect(code), 300);
-  }
-
   return (
     <View style={s.langContainer}>
       <Text style={s.langLogo}>🍳</Text>
@@ -108,7 +103,7 @@ function LanguageSelector({ onSelect }: { onSelect: (code: string) => void }) {
           <TouchableOpacity
             key={lang.code}
             style={[s.langBtn, selected===lang.code && s.langBtnSelected]}
-            onPress={() => choose(lang.code)}
+            onPress={() => setSelected(lang.code)}
             activeOpacity={0.7}
           >
             <Text style={s.langFlag}>{lang.flag}</Text>
@@ -120,6 +115,18 @@ function LanguageSelector({ onSelect }: { onSelect: (code: string) => void }) {
           </TouchableOpacity>
         ))}
       </ScrollView>
+      {selected && (
+        <TouchableOpacity
+          style={{
+            position:'absolute', bottom:32, left:24, right:24,
+            backgroundColor:ORANGE, borderRadius:12, paddingVertical:16,
+            alignItems:'center', elevation:5,
+          }}
+          onPress={() => onSelect(selected)}
+        >
+          <Text style={{color:'#fff', fontSize:18, fontWeight:'700'}}>Continue →</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
