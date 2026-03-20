@@ -12,9 +12,32 @@
       "backgroundColor": "#FF6B00"
     },
     "scheme": "rasoilink",
-    "plugins": ["expo-router", "expo-secure-store"],
-    "ios": { "supportsTablet": true },
-    "android": { "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#FF6B00" } },
-    "web": { "bundler": "metro" }
+    "plugins": [
+      "expo-secure-store",
+      "expo-router"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.rasoilink.app",
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "com.rasoilink.app",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundColor": "#FF6B00",
+        "backgroundImage": "./assets/android-icon-background.png"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "6c2e13bc-af65-43e0-b984-19dbdcea8ad1"
+      }
+    },
+    "owner": "vipul9811karuna"
   }
 }
