@@ -2,12 +2,12 @@
   "name": "rasoilink-match-engine",
   "version": "1.0.0",
   "type": "module",
-  "description": "RasoiLink Match Engine — scores worker × listing compatibility across 9 dimensions",
+  "description": "RasoiLink Match Engine \u2014 scores worker \u00d7 listing compatibility across 9 dimensions",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build": "echo Build skipped - using tsx",
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
+    "start": "node --import tsx/esm src/index.ts",
     "test": "jest --coverage",
     "test:watch": "jest --watch",
     "lint": "eslint src/**/*.ts",
@@ -20,7 +20,8 @@
     "pg": "^8.11.3",
     "pino": "^8.19.0",
     "pino-pretty": "^11.0.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "tsx": "^4.21.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",
