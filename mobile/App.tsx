@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Modal, ScrollView, TextInput
 } from 'react-native';
 import { Platform } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import axios from 'axios';
 
 const API_URL = 'https://rasoilink-production.up.railway.app';
@@ -26,18 +27,15 @@ const LANGUAGES = [
 const TokenStore = {
   async get(key: string): Promise<string|null> {
     if (Platform.OS === 'web') return localStorage.getItem(key);
-    const { default: S } = await import('expo-secure-store');
-    return S.getItemAsync(key);
+    return SecureStore.getItemAsync(key);
   },
   async set(key: string, value: string) {
     if (Platform.OS === 'web') { localStorage.setItem(key, value); return; }
-    const { default: S } = await import('expo-secure-store');
-    return S.setItemAsync(key, value);
+    return SecureStore.setItemAsync(key, value);
   },
   async clear(key: string) {
     if (Platform.OS === 'web') { localStorage.removeItem(key); return; }
-    const { default: S } = await import('expo-secure-store');
-    return S.deleteItemAsync(key);
+    return SecureStore.deleteItemAsync(key);
   }
 };
 
@@ -72,7 +70,7 @@ export default function App() {
   }, []);
 
   async function handleLanguageSelect(code: string) {
-    await TokenStore.set('language', code);
+    try { await TokenStore.set('language', code); } catch(e) {}
     setLanguage(code);
   }
 
@@ -115,18 +113,19 @@ function LanguageSelector({ onSelect }: { onSelect: (code: string) => void }) {
           </TouchableOpacity>
         ))}
       </ScrollView>
-      {selected && (
-        <TouchableOpacity
-          style={{
-            position:'absolute', bottom:32, left:24, right:24,
-            backgroundColor:ORANGE, borderRadius:12, paddingVertical:16,
-            alignItems:'center', elevation:5,
-          }}
-          onPress={() => onSelect(selected)}
-        >
-          <Text style={{color:'#fff', fontSize:18, fontWeight:'700'}}>Continue →</Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={{
+          backgroundColor: selected ? ORANGE : '#ccc',
+          borderRadius:12, paddingVertical:16, marginHorizontal:24,
+          marginBottom:32, alignItems:'center',
+        }}
+        onPress={() => { if (selected) onSelect(selected); }}
+        disabled={!selected}
+      >
+        <Text style={{color:'#fff', fontSize:18, fontWeight:'700'}}>
+          {selected ? 'Continue →' : 'Select a language'}
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 }
