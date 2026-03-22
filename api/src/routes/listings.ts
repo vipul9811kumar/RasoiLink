@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db.js';
+import { getPlanFeatures, getActiveListingCount, planGateResponse } from '../gates.js';
 
 const CreateListingSchema = z.object({
   title:                    z.string().min(3),
@@ -23,7 +24,7 @@ const CreateListingSchema = z.object({
 
 export async function listingRoutes(app: FastifyInstance) {
 
-  // GET /listings — search active listings
+  // GET /listings — search active listings (public)
   app.get<{ Querystring: { state?: string; role?: string; limit?: string } }>(
     '/listings', async (req, reply) => {
     const { state, role, limit = '20' } = req.query;
@@ -44,7 +45,7 @@ export async function listingRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: result.rows, error: null });
   });
 
-  // GET /listings/:listing_id
+  // GET /listings/:listing_id (public)
   app.get<{ Params: { listing_id: string } }>('/listings/:listing_id', async (req, reply) => {
     const result = await query(
       `SELECT l.*, op.restaurant_name, op.city as restaurant_city,
@@ -62,11 +63,25 @@ export async function listingRoutes(app: FastifyInstance) {
   });
 
   // POST /listings — owner creates listing
+  // ── GATE: max_job_posts ──────────────────────────────────────────────────
   app.post('/listings', {
     preHandler: [app.authenticate],
   }, async (req, reply) => {
     if (req.user!.user_type !== 'owner') {
       return reply.status(403).send({ success: false, error: 'Only owners can create listings', data: null });
+    }
+
+    // Check plan limits
+    const [plan, activeCount] = await Promise.all([
+      getPlanFeatures(req.user!.user_id),
+      getActiveListingCount(req.user!.user_id),
+    ]);
+
+    if (plan.max_job_posts !== null && activeCount >= plan.max_job_posts) {
+      return reply.status(402).send(planGateResponse(
+        `You have ${activeCount} active listing${activeCount !== 1 ? 's' : ''} (limit: ${plan.max_job_posts} on ${plan.plan_id} plan)`,
+        plan.plan_id === 'free' ? 'Starter' : 'Growth',
+      ));
     }
 
     const parsed = CreateListingSchema.safeParse(req.body);
@@ -112,7 +127,7 @@ export async function listingRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: result.rows[0], error: null });
   });
 
-  // GET /listings/:id/score — get match score for logged-in worker
+  // GET /listings/:id/score — match score for logged-in worker
   app.get<{ Params: { id: string } }>('/listings/:id/score', {
     preHandler: [app.authenticate],
   }, async (req: any, reply) => {
@@ -135,10 +150,19 @@ export async function listingRoutes(app: FastifyInstance) {
     }
   });
 
-  // POST /workers/:id/matches — get top job matches for a worker
+  // POST /workers/:id/matches — AI matches for a worker
+  // ── GATE: has_ai_match (owner must be on Starter+) ───────────────────────
   app.post<{ Params: { id: string } }>('/workers/:id/matches', {
     preHandler: [app.authenticate],
   }, async (req: any, reply) => {
+    // Only gate owners — workers can always see their own matches
+    if (req.user.user_type === 'owner') {
+      const plan = await getPlanFeatures(req.user.user_id);
+      if (!plan.has_ai_match) {
+        return reply.status(402).send(planGateResponse('AI match engine', 'Starter'));
+      }
+    }
+
     const worker_id = req.params.id;
     try {
       const resp = await fetch(`${process.env.MATCH_ENGINE_URL}/matches/worker`, {
@@ -146,8 +170,8 @@ export async function listingRoutes(app: FastifyInstance) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ worker_id, limit: 20, min_score: 0 }),
       });
-      const data = await resp.json() as any;
-      return reply.send({ success: true, data: data.data, error: null });
+      const data = await resp.json() as { success: boolean; data: unknown };
+      return reply.send(data);
     } catch {
       return reply.send({ success: false, data: null, error: 'Match engine unavailable' });
     }
