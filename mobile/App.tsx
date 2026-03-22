@@ -3,11 +3,11 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Modal, ScrollView, TextInput
 } from 'react-native';
-import { Platform } from 'react-native';
+import { Platform, Linking } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import axios from 'axios';
 
-const API_URL = 'https://rasoilink-production.up.railway.app';
+const API_URL = 'https://turbo-memory-x5jr77jv5j4j3rw4-3000.app.github.dev';
 const ORANGE = '#FF6B00';
 const GREEN  = '#2ECC71';
 const DARK   = '#1A1A2E';
@@ -40,6 +40,24 @@ const TokenStore = {
 };
 
 const api = axios.create({ baseURL: API_URL });
+// ── Billing helpers ──────────────────────────────────────────────────────────
+const billing = {
+  subscription: () => api.get('/billing/subscription'),
+  checkout: (price_id: string, tx_type: string, success_url: string, cancel_url: string) =>
+    api.post('/billing/checkout', { price_id, tx_type, success_url, cancel_url }),
+  portal: (return_url: string) => api.post('/billing/portal', { return_url }),
+};
+
+const PRICE_IDS: Record<string,string> = {
+  owner_starter: 'price_1TDDqWFE7IzsL1G5YMuZdcuz',
+  owner_growth:  'price_GROWTH_ID_HERE',
+  worker_boost:  'price_BOOST_ID_HERE',
+};
+
+function isPlanGateError(e: any) {
+  return e?.response?.status === 402 && e?.response?.data?.upgrade_required === true;
+}
+
 api.interceptors.request.use(async (config) => {
   const token = await TokenStore.get('auth_token');
   if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -541,6 +559,90 @@ function OwnerApplicants({ user }: { user: any }) {
 }
 
 // ─── Worker: Jobs Tab ─────────────────────────────────────────────────────────
+
+// ─── Upgrade Modal ───────────────────────────────────────────────────────────
+function UpgradeModal({ visible, onClose, userType, message }: { visible: boolean; onClose: ()=>void; userType: string; message?: string }) {
+  const [loading, setLoading] = useState<string|null>(null);
+  const plans = userType === 'owner' ? [
+    { id:'starter', name:'Starter', price:'$39/mo', price_id: PRICE_IDS.owner_starter,
+      features:['5 active job posts','View worker contacts','AI match engine'], highlight:false },
+    { id:'growth', name:'Growth', price:'$99/mo', price_id: PRICE_IDS.owner_growth,
+      features:['Unlimited posts','Everything in Starter','WhatsApp alerts'], highlight:true },
+  ] : [
+    { id:'worker_boost', name:'Boost', price:'$7/mo', price_id: PRICE_IDS.worker_boost,
+      features:['Priority in search','Verified badge','WhatsApp job alerts'], highlight:true },
+  ];
+
+  async function handleUpgrade(plan: any) {
+    setLoading(plan.id);
+    try {
+      const res = await billing.checkout(
+        plan.price_id, 'subscription',
+        'https://rasoilink.com/success?plan=' + plan.id,
+        'https://rasoilink.com/cancel',
+      );
+      const url = res.data?.data?.url;
+      if (url) { await Linking.openURL(url); onClose(); }
+    } catch(e:any) { 
+      console.log('Checkout error:', JSON.stringify(e?.response?.data ?? e?.message));
+      alert('Could not start checkout: ' + (e?.response?.data?.error ?? e?.message ?? 'Unknown error')); 
+    }
+    finally { setLoading(null); }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={{flex:1,backgroundColor:'rgba(0,0,0,0.55)',justifyContent:'flex-end'}}>
+        <View style={{backgroundColor:'#fff',borderTopLeftRadius:24,borderTopRightRadius:24,maxHeight:'88%'}}>
+          <View style={{backgroundColor:DARK,padding:24,borderTopLeftRadius:24,borderTopRightRadius:24,alignItems:'center'}}>
+            <TouchableOpacity style={{position:'absolute',top:20,right:20,padding:8}} onPress={onClose}>
+              <Text style={{color:'rgba(255,255,255,0.6)',fontSize:18}}>✕</Text>
+            </TouchableOpacity>
+            <Text style={{fontSize:32,marginBottom:8}}>🚀</Text>
+            <Text style={{color:'#fff',fontSize:22,fontWeight:'bold',marginBottom:4}}>Upgrade RasoiLink</Text>
+            <Text style={{color:'rgba(255,255,255,0.6)',fontSize:14,textAlign:'center'}}>Unlock the full platform</Text>
+          </View>
+          {message && (
+            <View style={{backgroundColor:'#FFF3E0',borderLeftWidth:4,borderLeftColor:ORANGE,padding:12,margin:16,marginBottom:0,borderRadius:8}}>
+              <Text style={{color:'#E65100',fontSize:13}}>{message}</Text>
+            </View>
+          )}
+          <ScrollView contentContainerStyle={{padding:16,paddingBottom:40}}>
+            {plans.map((plan:any) => (
+              <View key={plan.id} style={{borderWidth:plan.highlight?2:1.5,borderColor:plan.highlight?ORANGE:'#E0E0E0',borderRadius:16,padding:20,marginBottom:12}}>
+                {plan.highlight && (
+                  <View style={{alignSelf:'center',backgroundColor:ORANGE,paddingHorizontal:16,paddingVertical:4,borderRadius:12,marginBottom:8}}>
+                    <Text style={{color:'#fff',fontSize:11,fontWeight:'700'}}>Most Popular</Text>
+                  </View>
+                )}
+                <Text style={{fontSize:20,fontWeight:'bold',color:DARK,marginBottom:4}}>{plan.name}</Text>
+                <Text style={{fontSize:28,fontWeight:'bold',color:ORANGE,marginBottom:12}}>{plan.price}</Text>
+                {plan.features.map((f:string) => (
+                  <View key={f} style={{flexDirection:'row',alignItems:'center',marginBottom:6}}>
+                    <Text style={{color:'#27AE60',fontSize:16,fontWeight:'bold',marginRight:10}}>✓</Text>
+                    <Text style={{fontSize:14,color:'#444'}}>{f}</Text>
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={{backgroundColor:plan.highlight?ORANGE:DARK,padding:14,borderRadius:12,alignItems:'center',marginTop:12,opacity:loading===plan.id?0.6:1}}
+                  onPress={()=>handleUpgrade(plan)}
+                  disabled={!!loading}
+                >
+                  {loading===plan.id
+                    ?<ActivityIndicator color="#fff"/>
+                    :<Text style={{color:'#fff',fontSize:15,fontWeight:'bold'}}>Get {plan.name} — {plan.price}</Text>
+                  }
+                </TouchableOpacity>
+              </View>
+            ))}
+            <Text style={{textAlign:'center',color:'#999',fontSize:12,marginTop:8}}>Cancel anytime. No contracts.</Text>
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 function JobsTab({ user }: { user: any }) {
   const [jobs, setJobs]           = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
@@ -672,6 +774,24 @@ function ChatTab({ user, language }: { user: any; language: string }) {
 function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any; language: string; onLogout: ()=>void; onLanguageChange: (c:string)=>void }) {
   const isOwner = user.user_type==='owner';
   const [showEditor, setShowEditor] = useState(false);
+  const [plan, setPlan] = useState<any>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  useEffect(() => {
+    billing.subscription()
+      .then(r => setPlan(r.data.data))
+      .catch(() => {});
+  }, []);
+
+  async function openPortal() {
+    try {
+      const res = await billing.portal('https://rasoilink.com/profile');
+      const url = res.data?.data?.url;
+      if (url) await Linking.openURL(url);
+    } catch {
+      setShowUpgrade(true);
+    }
+  }
   return (
     <ScrollView contentContainerStyle={s.profileContainer}>
       <Text style={{fontSize:60,marginTop:20}}>{isOwner?'🏪':'👤'}</Text>
@@ -702,9 +822,33 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
           <Text style={s.btnText}>✏️ Edit My Profile</Text>
         </TouchableOpacity>
       )}
+      {/* Plan card */}
+      {plan && (
+        <View style={{width:'100%',flexDirection:'row',justifyContent:'space-between',alignItems:'center',backgroundColor:'#FFF8F0',borderRadius:12,padding:16,marginTop:8,marginBottom:8,borderWidth:1,borderColor:'#FFE0B2'}}>
+          <View>
+            <Text style={{fontSize:12,color:'#888',marginBottom:4}}>Current plan</Text>
+            <Text style={{fontSize:16,fontWeight:'bold',color:DARK}}>
+              {plan.plan_id==='free'?'🆓 Free':plan.plan_id==='starter'?'⭐ Starter':plan.plan_id==='growth'?'🚀 Growth':plan.plan_id==='worker_boost'?'🔥 Boosted':plan.plan_id}
+            </Text>
+          </View>
+          {plan.plan_id==='free'
+            ? <TouchableOpacity style={{backgroundColor:ORANGE,paddingHorizontal:16,paddingVertical:8,borderRadius:8}} onPress={() => setShowUpgrade(true)}>
+                <Text style={{color:'#fff',fontSize:13,fontWeight:'600'}}>Upgrade</Text>
+              </TouchableOpacity>
+            : <TouchableOpacity style={{backgroundColor:DARK,paddingHorizontal:16,paddingVertical:8,borderRadius:8}} onPress={openPortal}>
+                <Text style={{color:'#fff',fontSize:13,fontWeight:'600'}}>Manage</Text>
+              </TouchableOpacity>
+          }
+        </View>
+      )}
       <TouchableOpacity style={s.logoutBtn} onPress={onLogout}>
         <Text style={{color:'#fff',fontSize:16,fontWeight:'bold'}}>Logout</Text>
       </TouchableOpacity>
+      <UpgradeModal
+        visible={showUpgrade}
+        onClose={() => setShowUpgrade(false)}
+        userType={user.user_type}
+      />
       {!isOwner && (
         <Modal visible={showEditor} animationType="slide" onRequestClose={() => setShowEditor(false)}>
           <WorkerProfileEditor user={user} onClose={() => setShowEditor(false)}/>
@@ -1111,6 +1255,9 @@ function BrowseWorkersTab({ user }: { user: any }) {
   const [selectedListing, setSelectedListing] = useState<string>('');
   const [filterState, setFilterState] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeMessage, setUpgradeMessage] = useState('');
+  const [planMeta, setPlanMeta] = useState<any>(null);
 
   function load(state='') {
     setLoading(true);
@@ -1120,6 +1267,8 @@ function BrowseWorkersTab({ user }: { user: any }) {
       api.get(`/owners/${user.user_id}/listings`),
     ]).then(([w, l]) => {
       setWorkers(w.data.data ?? []);
+      console.log('planMeta from API:', JSON.stringify(w.data.meta));
+      setPlanMeta(w.data.meta ?? null);
       const active = (l.data.data ?? []).filter((x:any) => x.status === 'active');
       setListings(active);
       if (active.length > 0 && !selectedListing) setSelectedListing(active[0].listing_id);
@@ -1162,6 +1311,18 @@ function BrowseWorkersTab({ user }: { user: any }) {
         </ScrollView>
       </View>
 
+      {/* Plan gate banner */}
+      {planMeta && !planMeta.contacts_visible && (
+        <View style={{backgroundColor:'#FFF3E0',padding:14,flexDirection:'row',justifyContent:'space-between',alignItems:'center',borderBottomWidth:1,borderColor:'#FFE0B2'}}>
+          <Text style={{color:'#E65100',fontSize:13,flex:1}}>🔒 Upgrade to contact workers directly</Text>
+          <TouchableOpacity
+            style={{backgroundColor:'#FF6B00',paddingHorizontal:12,paddingVertical:6,borderRadius:8}}
+            onPress={() => { setUpgradeMessage(planMeta.upgrade_message ?? ''); setShowUpgrade(true); }}
+          >
+            <Text style={{color:'#fff',fontWeight:'bold',fontSize:13}}>Upgrade →</Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {/* Filter bar */}
       <View style={s.filterBar}>
         <TextInput
@@ -1261,6 +1422,12 @@ function BrowseWorkersTab({ user }: { user: any }) {
           </View>
         )}
       </ScrollView>
+    <UpgradeModal
+      visible={showUpgrade}
+      onClose={() => setShowUpgrade(false)}
+      userType="owner"
+      message={upgradeMessage}
+    />
     </View>
   );
 }
