@@ -32,6 +32,13 @@ await app.register(jwt, {
   secret: process.env.JWT_SECRET ?? 'dev_secret',
 });
 
+// Required for Stripe webhook signature verification
+await app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (req, body, done) => {
+  (req as any).rawBody = body;
+  try { done(null, JSON.parse(body.toString())); }
+  catch (e: any) { done(e, undefined); }
+});
+
 // Auth decorator
 app.decorate('authenticate', async (req: any, reply: any) => {
   try {

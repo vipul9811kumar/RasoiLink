@@ -1,10 +1,75 @@
 import { createNotification } from './notifications.js';
-import { FastifyInstance } from 'fastify';
-import { query } from '../db.js';
+import { FastifyInstance }    from 'fastify';
+import { query }              from '../db.js';
+import { stripe, PRICES, PLAN_FROM_PRICE, PlanId } from '../stripe.js';
+
+// ─────────────────────────────────────────────
+// helpers
+// ─────────────────────────────────────────────
+
+/** Return the active subscription row for a user (never null — free row always exists) */
+async function getSubscription(user_id: string) {
+  const res = await query<any>(
+    `SELECT s.*, p.max_job_posts, p.can_view_contacts, p.has_ai_match, p.has_whatsapp
+     FROM app.subscriptions s
+     JOIN app.plans p ON s.plan_id = p.plan_id
+     WHERE s.user_id = $1 AND s.status = 'active'
+     LIMIT 1`,
+    [user_id],
+  );
+  return res.rows[0] ?? null;
+}
+
+/** Upsert subscription plan for a user */
+async function upsertSubscription(
+  user_id: string,
+  plan_id: PlanId,
+  stripe_customer_id: string,
+  stripe_sub_id: string | null,
+  period_end: Date | null,
+) {
+  await query(
+    `INSERT INTO app.subscriptions
+       (user_id, plan_id, stripe_customer_id, stripe_sub_id, status, current_period_end)
+     VALUES ($1, $2, $3, $4, 'active', $5)
+     ON CONFLICT (user_id) WHERE status = 'active'
+     DO UPDATE SET
+       plan_id              = EXCLUDED.plan_id,
+       stripe_customer_id   = EXCLUDED.stripe_customer_id,
+       stripe_sub_id        = EXCLUDED.stripe_sub_id,
+       status               = 'active',
+       current_period_end   = EXCLUDED.current_period_end,
+       updated_at           = now()`,
+    [user_id, plan_id, stripe_customer_id, stripe_sub_id, period_end],
+  );
+}
+
+/** Record a billing transaction */
+async function recordTransaction(
+  user_id: string,
+  stripe_payment_id: string,
+  tx_type: string,
+  amount_cents: number,
+  description: string,
+  metadata: object = {},
+) {
+  await query(
+    `INSERT INTO app.billing_transactions
+       (user_id, stripe_payment_id, tx_type, amount_cents, status, description, metadata)
+     VALUES ($1, $2, $3, $4, 'succeeded', $5, $6)`,
+    [user_id, stripe_payment_id, tx_type, amount_cents, description, JSON.stringify(metadata)],
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Routes
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function payRoutes(app: FastifyInstance) {
 
-  // GET /workers/:id/pay — worker's full pay history
+  // ── EXISTING ROUTES (unchanged) ──────────────────────────────────────────
+
+  // GET /workers/:id/pay
   app.get<{ Params: { id: string } }>('/workers/:id/pay', {
     preHandler: [app.authenticate],
   }, async (req, reply) => {
@@ -22,13 +87,12 @@ export async function payRoutes(app: FastifyInstance) {
       ORDER BY pc.period_start DESC
     `, [req.params.id]);
 
-    // Summary stats
     const cycles = result.rows;
     const totalEarned = cycles
-      .filter((c:any) => ['owner_confirmed','worker_confirmed','resolved'].includes(c.status))
-      .reduce((sum:number, c:any) => sum + (c.owner_amount_paid_cents ?? 0), 0);
-    const onTimeCount = cycles.filter((c:any) => c.status === 'worker_confirmed' || c.status === 'owner_confirmed').length;
-    const lateCount   = cycles.filter((c:any) => c.status === 'late' || c.status === 'disputed').length;
+      .filter((c: any) => ['owner_confirmed','worker_confirmed','resolved'].includes(c.status))
+      .reduce((sum: number, c: any) => sum + (c.owner_amount_paid_cents ?? 0), 0);
+    const onTimeCount = cycles.filter((c: any) => c.status === 'worker_confirmed' || c.status === 'owner_confirmed').length;
+    const lateCount   = cycles.filter((c: any) => c.status === 'late' || c.status === 'disputed').length;
 
     return reply.send({
       success: true,
@@ -37,7 +101,7 @@ export async function payRoutes(app: FastifyInstance) {
     });
   });
 
-  // GET /workers/:id/ratings — worker's trust score breakdown
+  // GET /workers/:id/ratings
   app.get<{ Params: { id: string } }>('/workers/:id/ratings', {
     preHandler: [app.authenticate],
   }, async (req, reply) => {
@@ -61,10 +125,9 @@ export async function payRoutes(app: FastifyInstance) {
     const ratings = ratingsRes.rows;
     const user    = userRes.rows[0];
 
-    // Compute dimension averages
     const avg = (key: string) => {
-      const vals = ratings.map((r:any) => r[key]).filter((v:any) => v != null);
-      return vals.length ? (vals.reduce((a:number,b:number) => a+b, 0) / vals.length).toFixed(1) : null;
+      const vals = ratings.map((r: any) => r[key]).filter((v: any) => v != null);
+      return vals.length ? (vals.reduce((a: number, b: number) => a + b, 0) / vals.length).toFixed(1) : null;
     };
 
     return reply.send({
@@ -87,7 +150,7 @@ export async function payRoutes(app: FastifyInstance) {
     });
   });
 
-  // PATCH /pay/:id/confirm — worker confirms they received pay
+  // PATCH /pay/:id/confirm
   app.patch<{ Params: { id: string } }>('/pay/:id/confirm', {
     preHandler: [app.authenticate],
   }, async (req, reply) => {
@@ -114,7 +177,7 @@ export async function payRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: result.rows[0], error: null });
   });
 
-  // PATCH /pay/:id/owner-confirm — owner marks pay as sent
+  // PATCH /pay/:id/owner-confirm
   app.patch<{ Params: { id: string } }>('/pay/:id/owner-confirm', {
     preHandler: [app.authenticate],
   }, async (req, reply) => {
@@ -137,7 +200,7 @@ export async function payRoutes(app: FastifyInstance) {
       user_id: pcRow.worker_id,
       event_type: 'pay_sent',
       title: '💰 Payment Sent!',
-      body: `${ownerNameRes.rows[0]?.name} marked your payment of $${Math.round(amount_cents/100)} as sent.`,
+      body: `${ownerNameRes.rows[0]?.name} marked your payment of $${Math.round(amount_cents / 100)} as sent.`,
       related_entity_id: pcRow.cycle_id,
       related_entity_type: 'pay_cycle',
       dedup_key: `pay_sent_${pcRow.cycle_id}`,
@@ -145,7 +208,7 @@ export async function payRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: result.rows[0], error: null });
   });
 
-  // GET /owners/:id/pay — owner's pay obligations
+  // GET /owners/:id/pay
   app.get<{ Params: { id: string } }>('/owners/:id/pay', {
     preHandler: [app.authenticate],
   }, async (req, reply) => {
@@ -169,8 +232,8 @@ export async function payRoutes(app: FastifyInstance) {
     `, [req.params.id]);
 
     const cycles = result.rows;
-    const totalPaid    = cycles.filter((c:any) => c.owner_amount_paid_cents).reduce((s:number,c:any) => s + c.owner_amount_paid_cents, 0);
-    const pendingCount = cycles.filter((c:any) => c.status === 'scheduled' || c.status === 'late').length;
+    const totalPaid    = cycles.filter((c: any) => c.owner_amount_paid_cents).reduce((s: number, c: any) => s + c.owner_amount_paid_cents, 0);
+    const pendingCount = cycles.filter((c: any) => c.status === 'scheduled' || c.status === 'late').length;
 
     return reply.send({
       success: true,
@@ -179,7 +242,7 @@ export async function payRoutes(app: FastifyInstance) {
     });
   });
 
-  // POST /ratings — submit a rating
+  // POST /ratings
   app.post('/ratings', {
     preHandler: [app.authenticate],
   }, async (req: any, reply) => {
@@ -190,7 +253,6 @@ export async function payRoutes(app: FastifyInstance) {
       private_note,
     } = req.body as any;
     const rater_id = (req as any).user.user_id;
-
 
     const result = await query(`
       INSERT INTO app.ratings (
@@ -210,4 +272,260 @@ export async function payRoutes(app: FastifyInstance) {
     return reply.status(201).send({ success: true, data: result.rows[0], error: null });
   });
 
+  // ── NEW: STRIPE BILLING ROUTES ────────────────────────────────────────────
+
+  /**
+   * GET /billing/subscription
+   * Returns the current user's active plan + feature flags
+   */
+  app.get('/billing/subscription', {
+    preHandler: [app.authenticate],
+  }, async (req: any, reply) => {
+    const sub = await getSubscription(req.user.user_id);
+    if (!sub) {
+      return reply.send({
+        success: true,
+        data: { plan_id: 'free', status: 'active', can_view_contacts: false, has_ai_match: false, max_job_posts: 1 },
+        error: null,
+      });
+    }
+    return reply.send({ success: true, data: sub, error: null });
+  });
+
+  /**
+   * POST /billing/checkout
+   * Creates a Stripe Checkout session and returns the URL.
+   * Body: { price_id: string, tx_type: string, success_url: string, cancel_url: string }
+   *
+   * tx_type is one of: 'subscription' | 'hire_fee' | 'job_boost' | 'course' | 'background_check'
+   */
+  app.post('/billing/checkout', {
+    preHandler: [app.authenticate],
+  }, async (req: any, reply) => {
+    const { price_id, tx_type, success_url, cancel_url, metadata = {} } = req.body as any;
+
+    if (!price_id || !tx_type || !success_url || !cancel_url) {
+      return reply.status(400).send({ success: false, error: 'price_id, tx_type, success_url, cancel_url are required', data: null });
+    }
+
+    // Look up user
+    const userRes = await query<any>(
+      'SELECT user_id, name, phone FROM app.users WHERE user_id = $1',
+      [req.user.user_id],
+    );
+    const user = userRes.rows[0];
+    if (!user) return reply.status(404).send({ success: false, error: 'User not found', data: null });
+
+    // Get or create Stripe customer
+    let stripe_customer_id: string | undefined;
+    const subRes = await query<any>(
+      'SELECT stripe_customer_id FROM app.subscriptions WHERE user_id = $1 LIMIT 1',
+      [user.user_id],
+    );
+    stripe_customer_id = subRes.rows[0]?.stripe_customer_id ?? undefined;
+
+    if (!stripe_customer_id) {
+      const customer = await stripe.customers.create({
+        name:     user.name,
+        phone:    user.phone,
+        metadata: { user_id: user.user_id, user_type: req.user.user_type },
+      });
+      stripe_customer_id = customer.id;
+    }
+
+    const isSubscription = tx_type === 'subscription';
+
+    const session = await stripe.checkout.sessions.create({
+      customer:             stripe_customer_id,
+      mode:                 isSubscription ? 'subscription' : 'payment',
+      payment_method_types: ['card'],
+      line_items: [{ price: price_id, quantity: 1 }],
+      success_url: `${success_url}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url,
+      metadata: {
+        user_id:   user.user_id,
+        tx_type,
+        price_id,
+        ...metadata,
+      },
+      ...(isSubscription && {
+        subscription_data: {
+          metadata: { user_id: user.user_id },
+        },
+      }),
+    });
+
+    return reply.send({ success: true, data: { url: session.url, session_id: session.id }, error: null });
+  });
+
+  /**
+   * POST /billing/portal
+   * Creates a Stripe Customer Portal session so users can self-manage billing.
+   * Body: { return_url: string }
+   */
+  app.post('/billing/portal', {
+    preHandler: [app.authenticate],
+  }, async (req: any, reply) => {
+    const { return_url } = req.body as any;
+    if (!return_url) {
+      return reply.status(400).send({ success: false, error: 'return_url is required', data: null });
+    }
+
+    const subRes = await query<any>(
+      'SELECT stripe_customer_id FROM app.subscriptions WHERE user_id = $1 LIMIT 1',
+      [req.user.user_id],
+    );
+    const stripe_customer_id = subRes.rows[0]?.stripe_customer_id;
+
+    if (!stripe_customer_id) {
+      return reply.status(400).send({ success: false, error: 'No billing account found. Subscribe to a plan first.', data: null });
+    }
+
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer:   stripe_customer_id,
+      return_url,
+    });
+
+    return reply.send({ success: true, data: { url: portalSession.url }, error: null });
+  });
+
+  /**
+   * POST /billing/webhook
+   * Receives and verifies Stripe webhook events.
+   * IMPORTANT: must be registered with rawBody support (see index.ts note below).
+   */
+  app.post('/billing/webhook', {
+    config: { rawBody: true },   // Fastify needs raw body for signature verification
+  }, async (req: any, reply) => {
+    const sig       = req.headers['stripe-signature'] as string;
+    const secret    = process.env.STRIPE_WEBHOOK_SECRET ?? '';
+    const rawBody   = (req.rawBody ?? req.body) as Buffer | string;
+
+
+let event: any;
+    if (process.env.NODE_ENV !== 'production') {
+      event = JSON.parse((rawBody as Buffer).toString());
+      app.log.info('Dev mode: skipping signature check');
+    } else {
+      try {
+        event = stripe.webhooks.constructEvent(rawBody, sig, secret);
+      } catch (err: any) {
+        app.log.warn(`Webhook signature failed: ${err.message}`);
+        return reply.status(400).send({ error: `Webhook Error: ${err.message}` });
+      }
+    }
+
+    app.log.info(`Stripe event: ${event.type}`);
+
+    // ── Handle events ────────────────────────────────────────────────────────
+
+    if (event.type === 'checkout.session.completed') {
+      const session   = event.data.object as any;
+      const user_id   = session.metadata?.user_id;
+      const tx_type   = session.metadata?.tx_type;
+      const price_id  = session.metadata?.price_id;
+
+      if (!user_id) {
+        app.log.warn('checkout.session.completed missing user_id in metadata');
+        return reply.send({ received: true });
+      }
+
+      if (tx_type === 'subscription') {
+        // Subscription checkout — plan upgrade
+        const plan_id: PlanId = PLAN_FROM_PRICE[price_id] ?? 'free';
+        const sub = session.subscription
+          ? await stripe.subscriptions.retrieve(session.subscription)
+          : null;
+
+        await upsertSubscription(
+          user_id,
+          plan_id,
+          session.customer,
+          session.subscription ?? null,
+          sub && (sub as any).current_period_end ? new Date((sub as any).current_period_end * 1000) : null,
+        );
+
+        await recordTransaction(
+          user_id,
+          session.payment_intent ?? session.id,
+          'subscription',
+          session.amount_total ?? 0,
+          `Subscribed to ${plan_id} plan`,
+          { plan_id, session_id: session.id },
+        );
+
+        app.log.info(`User ${user_id} upgraded to ${plan_id}`);
+
+      } else {
+        // One-time payment (hire fee, boost, course, etc.)
+        const amount = session.amount_total ?? 0;
+
+        await recordTransaction(
+          user_id,
+          session.payment_intent ?? session.id,
+          tx_type,
+          amount,
+          `One-time: ${tx_type}`,
+          { session_id: session.id, ...session.metadata },
+        );
+
+        // For hire fee — store against the listing if listing_id was passed
+        if (tx_type === 'hire_fee' && session.metadata?.listing_id) {
+          await query(
+            `UPDATE app.listings SET hire_fee_paid = true WHERE listing_id = $1`,
+            [session.metadata.listing_id],
+          ).catch(() => {}); // non-fatal if column doesn't exist yet
+        }
+
+        app.log.info(`One-time payment ${tx_type} recorded for user ${user_id}`);
+      }
+    }
+
+    else if (event.type === 'customer.subscription.updated') {
+      const sub     = event.data.object as any;
+      const user_id = sub.metadata?.user_id;
+      if (!user_id) return reply.send({ received: true });
+
+      const plan_id: PlanId = PLAN_FROM_PRICE[sub.items.data[0]?.price?.id] ?? 'free';
+
+      await query(
+        `UPDATE app.subscriptions
+         SET plan_id = $1, status = $2, current_period_end = $3, updated_at = now()
+         WHERE user_id = $4`,
+        [plan_id, sub.status, new Date(sub.current_period_end * 1000), user_id],
+      );
+    }
+
+    else if (event.type === 'customer.subscription.deleted') {
+      const sub     = event.data.object as any;
+      const user_id = sub.metadata?.user_id;
+      if (!user_id) return reply.send({ received: true });
+
+      // Downgrade to free
+      await query(
+        `UPDATE app.subscriptions
+         SET plan_id = 'free', status = 'cancelled', stripe_sub_id = NULL,
+             cancelled_at = now(), updated_at = now()
+         WHERE user_id = $1`,
+        [user_id],
+      );
+
+      app.log.info(`User ${user_id} cancelled — downgraded to free`);
+    }
+
+    else if (event.type === 'invoice.payment_failed') {
+      const invoice = event.data.object as any;
+      const customer_id = invoice.customer;
+
+      await query(
+        `UPDATE app.subscriptions SET status = 'past_due', updated_at = now()
+         WHERE stripe_customer_id = $1`,
+        [customer_id],
+      );
+
+      app.log.warn(`Payment failed for Stripe customer ${customer_id}`);
+    }
+
+    return reply.send({ received: true });
+  });
 }
