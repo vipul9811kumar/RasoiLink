@@ -41,7 +41,7 @@ export async function listingRoutes(app: FastifyInstance) {
     if (role)  { params.push(role);  sql += ` AND l.role_code = $${params.length}`; }
 
     params.push(parseInt(limit));
-    sql += ` ORDER BY l.is_boosted DESC, l.boosted_until DESC NULLS LAST, l.created_at DESC LIMIT ${params.length}`;
+    sql += ` ORDER BY l.is_boosted DESC, l.boosted_until DESC NULLS LAST, l.created_at DESC LIMIT $${params.length}`;
 
     const result = await query(sql, params);
     return reply.send({ success: true, data: result.rows, error: null });
