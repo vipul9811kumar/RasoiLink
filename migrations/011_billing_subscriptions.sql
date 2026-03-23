@@ -29,8 +29,8 @@ ON CONFLICT (plan_id) DO NOTHING;
 
 -- Subscriptions: one active row per user
 CREATE TABLE IF NOT EXISTS app.subscriptions (
-  subscription_id     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id             UUID        NOT NULL REFERENCES app.users(user_id) ON DELETE CASCADE,
+  subscription_id     TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id             TEXT        NOT NULL REFERENCES app.users(user_id) ON DELETE CASCADE,
   plan_id             TEXT        NOT NULL REFERENCES app.plans(plan_id),
   stripe_customer_id  TEXT        UNIQUE,           -- cus_xxx
   stripe_sub_id       TEXT        UNIQUE,           -- sub_xxx (NULL for free/one-time)
@@ -49,8 +49,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS subscriptions_user_active_idx
 
 -- Transactions: every charge we record here
 CREATE TABLE IF NOT EXISTS app.billing_transactions (
-  tx_id               UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id             UUID        NOT NULL REFERENCES app.users(user_id) ON DELETE CASCADE,
+  tx_id               TEXT        PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id             TEXT        NOT NULL REFERENCES app.users(user_id) ON DELETE CASCADE,
   stripe_payment_id   TEXT,                         -- pi_xxx or cs_xxx
   tx_type             TEXT        NOT NULL
                                   CHECK (tx_type IN ('subscription','hire_fee','job_boost','course','background_check','whatsapp_alert')),
@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS app.billing_transactions (
 
 -- Track job post usage per owner (for plan gating)
 CREATE TABLE IF NOT EXISTS app.job_post_usage (
-  user_id         UUID        PRIMARY KEY REFERENCES app.users(user_id) ON DELETE CASCADE,
+  user_id         TEXT        PRIMARY KEY REFERENCES app.users(user_id) ON DELETE CASCADE,
   posts_used      INTEGER     NOT NULL DEFAULT 0,
   period_start    TIMESTAMPTZ NOT NULL DEFAULT date_trunc('month', now()),
   updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
