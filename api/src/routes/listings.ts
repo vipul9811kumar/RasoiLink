@@ -28,7 +28,6 @@ export async function listingRoutes(app: FastifyInstance) {
   // GET /listings — search active listings (public)
   app.get<{ Querystring: { state?: string; role?: string; limit?: string } }>(
     '/listings', async (req, reply) => {
-    // Expire any boosts that have passed their end date
     await query('SELECT app.expire_boosts()').catch(() => {});
     const { state, role, limit = '20' } = req.query;
     let sql = `SELECT l.*, op.restaurant_name, u.trust_score as owner_trust_score
@@ -38,65 +37,7 @@ export async function listingRoutes(app: FastifyInstance) {
                WHERE l.status = 'active'`;
     const params: unknown[] = [];
 
-    if (state) { params.push(state); sql += ` AND l.state = $${params.length}`; 
-  // POST /listings/:listing_id/boost — owner boosts a listing ($29 one-time)
-  app.post<{ Params: { listing_id: string } }>('/listings/:listing_id/boost', {
-    preHandler: [app.authenticate],
-  }, async (req: any, reply) => {
-    const { listing_id } = req.params;
-
-    // Verify owner owns this listing
-    const listingRes = await query(
-      'SELECT owner_id FROM app.listings WHERE listing_id = $1',
-      [listing_id]
-    );
-    if (!listingRes.rows.length) {
-      return reply.status(404).send({ success: false, error: 'Listing not found', data: null });
-    }
-    if (listingRes.rows[0].owner_id !== req.user.user_id) {
-      return reply.status(403).send({ success: false, error: 'Forbidden', data: null });
-    }
-
-    // Create Stripe checkout for job boost
-    const userRes = await query<any>(
-      'SELECT user_id, name, phone FROM app.users WHERE user_id = $1',
-      [req.user.user_id]
-    );
-    const user = userRes.rows[0];
-
-    // Get or create Stripe customer
-    const subRes = await query<any>(
-      'SELECT stripe_customer_id FROM app.subscriptions WHERE user_id = $1 LIMIT 1',
-      [user.user_id]
-    );
-    let stripe_customer_id = subRes.rows[0]?.stripe_customer_id;
-    if (!stripe_customer_id) {
-      const customer = await stripe.customers.create({
-        name: user.name, phone: user.phone,
-        metadata: { user_id: user.user_id },
-      });
-      stripe_customer_id = customer.id;
-    }
-
-    const session = await stripe.checkout.sessions.create({
-      customer: stripe_customer_id,
-      mode: 'payment',
-      payment_method_types: ['card'],
-      line_items: [{ price: process.env.STRIPE_PRICE_JOB_BOOST ?? '', quantity: 1 }],
-      success_url: `${req.body?.success_url ?? 'https://rasoilink-production.up.railway.app/health'}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: req.body?.cancel_url ?? 'https://rasoilink-production.up.railway.app/health',
-      metadata: {
-        user_id: user.user_id,
-        tx_type: 'job_boost',
-        listing_id,
-        price_id: process.env.STRIPE_PRICE_JOB_BOOST ?? '',
-      },
-    });
-
-    return reply.send({ success: true, data: { url: session.url, session_id: session.id }, error: null });
-  });
-
-}
+    if (state) { params.push(state); sql += ` AND l.state = $${params.length}`; }
     if (role)  { params.push(role);  sql += ` AND l.role_code = $${params.length}`; }
 
     params.push(parseInt(limit));
@@ -236,6 +177,56 @@ export async function listingRoutes(app: FastifyInstance) {
     } catch {
       return reply.send({ success: false, data: null, error: 'Match engine unavailable' });
     }
+  });
+
+  // POST /listings/:listing_id/boost — owner boosts listing for 7 days ($29)
+  app.post<{ Params: { listing_id: string } }>('/listings/:listing_id/boost', {
+    preHandler: [app.authenticate],
+  }, async (req: any, reply) => {
+    const { listing_id } = req.params;
+
+    const listingRes = await query(
+      'SELECT owner_id FROM app.listings WHERE listing_id = $1',
+      [listing_id]
+    );
+    if (!listingRes.rows.length) {
+      return reply.status(404).send({ success: false, error: 'Listing not found', data: null });
+    }
+    if (listingRes.rows[0].owner_id !== req.user.user_id) {
+      return reply.status(403).send({ success: false, error: 'Forbidden', data: null });
+    }
+
+    const subRes = await query(
+      'SELECT stripe_customer_id FROM app.subscriptions WHERE user_id = $1 LIMIT 1',
+      [req.user.user_id]
+    );
+    let stripe_customer_id = (subRes.rows[0] as any)?.stripe_customer_id;
+    if (!stripe_customer_id) {
+      const userRes = await query('SELECT name, phone FROM app.users WHERE user_id = $1', [req.user.user_id]);
+      const u = (userRes.rows[0] as any);
+      const customer = await stripe.customers.create({
+        name: u.name, phone: u.phone,
+        metadata: { user_id: req.user.user_id },
+      });
+      stripe_customer_id = customer.id;
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      customer: stripe_customer_id,
+      mode: 'payment',
+      payment_method_types: ['card'],
+      line_items: [{ price: process.env.STRIPE_PRICE_JOB_BOOST ?? '', quantity: 1 }],
+      success_url: (req.body?.success_url ?? 'https://rasoilink-production.up.railway.app/health') + '?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: req.body?.cancel_url ?? 'https://rasoilink-production.up.railway.app/health',
+      metadata: {
+        user_id: req.user.user_id,
+        tx_type: 'job_boost',
+        listing_id,
+        price_id: process.env.STRIPE_PRICE_JOB_BOOST ?? '',
+      },
+    });
+
+    return reply.send({ success: true, data: { url: session.url, session_id: session.id }, error: null });
   });
 
 }
