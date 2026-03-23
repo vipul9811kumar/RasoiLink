@@ -418,7 +418,8 @@ function OwnerListings({ user }: { user: any }) {
       const url = res.data?.data?.url;
       if (url) await Linking.openURL(url);
     } catch(e: any) {
-      alert(e.response?.data?.error ?? 'Could not start boost checkout');
+      console.log('BOOST ERROR:', JSON.stringify(e?.response?.data ?? e?.message));
+      alert(e.response?.data?.error ?? e?.message ?? 'Could not start boost checkout');
     } finally { setBoosting(null); }
   }
 
