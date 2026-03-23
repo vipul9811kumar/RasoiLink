@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db.js';
 import { getPlanFeatures, getActiveListingCount, planGateResponse } from '../gates.js';
+import { stripe } from '../stripe.js';
 
 const CreateListingSchema = z.object({
   title:                    z.string().min(3),
