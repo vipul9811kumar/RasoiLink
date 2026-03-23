@@ -50,8 +50,8 @@ const billing = {
 
 const PRICE_IDS: Record<string,string> = {
   owner_starter: 'price_1TDDqWFE7IzsL1G5YMuZdcuz',
-  owner_growth:  'price_GROWTH_ID_HERE',
-  worker_boost:  'price_BOOST_ID_HERE',
+  owner_growth:  'price_1TDDqyFE7IzsL1G5Z52VYRi5',
+  worker_boost:  'price_1TDDrOFE7IzsL1G5fuxNGOBD',
 };
 
 function isPlanGateError(e: any) {
@@ -578,8 +578,8 @@ function UpgradeModal({ visible, onClose, userType, message }: { visible: boolea
     try {
       const res = await billing.checkout(
         plan.price_id, 'subscription',
-        'https://rasoilink.com/success?plan=' + plan.id,
-        'https://rasoilink.com/cancel',
+        'https://turbo-memory-x5jr77jv5j4j3rw4-3000.app.github.dev/health',
+        'https://turbo-memory-x5jr77jv5j4j3rw4-3000.app.github.dev/health',
       );
       const url = res.data?.data?.url;
       if (url) { await Linking.openURL(url); onClose(); }
