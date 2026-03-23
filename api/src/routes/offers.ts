@@ -70,6 +70,25 @@ export async function offerRoutes(app: FastifyInstance) {
     const { worker_id } = req.body as { worker_id: string };
     const listing_id = req.params.id;
 
+    // ── GATE: hire fee must be paid before sending offer ─────────────────────
+    const listingRes = await query(
+      `SELECT hire_fee_paid, owner_id FROM app.listings WHERE listing_id = $1`,
+      [listing_id]
+    );
+    if (!listingRes.rows.length) {
+      return reply.status(404).send({ success: false, error: 'Listing not found', data: null });
+    }
+    if (!listingRes.rows[0].hire_fee_paid) {
+      return reply.status(402).send({
+        success: false,
+        error: 'A one-time hire fee of $149 is required to send offers. This covers unlimited offers for this listing.',
+        data: null,
+        upgrade_required: true,
+        required_plan: 'hire_fee',
+        listing_id,
+      });
+    }
+
     // Check not already offered
     const existing = await query(
       `SELECT offer_id FROM app.offers WHERE listing_id = $1 AND worker_id = $2`,

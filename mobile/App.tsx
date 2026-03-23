@@ -43,8 +43,8 @@ const api = axios.create({ baseURL: API_URL });
 // ── Billing helpers ──────────────────────────────────────────────────────────
 const billing = {
   subscription: () => api.get('/billing/subscription'),
-  checkout: (price_id: string, tx_type: string, success_url: string, cancel_url: string) =>
-    api.post('/billing/checkout', { price_id, tx_type, success_url, cancel_url }),
+  checkout: (price_id: string, tx_type: string, success_url: string, cancel_url: string, metadata?: object) =>
+    api.post('/billing/checkout', { price_id, tx_type, success_url, cancel_url, metadata }),
   portal: (return_url: string) => api.post('/billing/portal', { return_url }),
 };
 
@@ -1258,6 +1258,9 @@ function BrowseWorkersTab({ user }: { user: any }) {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState('');
   const [planMeta, setPlanMeta] = useState<any>(null);
+  const [showHireFee, setShowHireFee] = useState(false);
+  const [hireFeeListingId, setHireFeeListingId] = useState('');
+  const [hireFeeLoading, setHireFeeLoading] = useState(false);
 
   function load(state='') {
     setLoading(true);
@@ -1284,8 +1287,33 @@ function BrowseWorkersTab({ user }: { user: any }) {
       await api.post(`/listings/${selectedListing}/offer`, { worker_id });
       setSent(s => new Set([...s, worker_id]));
     } catch(e: any) {
-      alert(e.response?.data?.error ?? 'Failed to send offer');
+      if (e?.response?.status === 402 && e?.response?.data?.upgrade_required) {
+        setHireFeeListingId(e?.response?.data?.listing_id ?? selectedListing);
+        setShowHireFee(true);
+      } else {
+        alert(e.response?.data?.error ?? 'Failed to send offer');
+      }
     } finally { setSending(null); }
+  }
+
+  async function payHireFee() {
+    setHireFeeLoading(true);
+    try {
+      const res = await billing.checkout(
+        'price_1TDDs3FE7IzsL1G5AwdDdcAC',
+        'hire_fee',
+        'https://rasoilink-production.up.railway.app/health',
+        'https://rasoilink-production.up.railway.app/health',
+        { listing_id: hireFeeListingId },
+      );
+      const url = res.data?.data?.url;
+      if (url) {
+        await Linking.openURL(url);
+        setShowHireFee(false);
+      }
+    } catch(e: any) {
+      alert('Could not start checkout. Please try again.');
+    } finally { setHireFeeLoading(false); }
   }
 
   if (loading) return <View style={s.center}><ActivityIndicator color={DARK}/></View>;
@@ -1422,6 +1450,39 @@ function BrowseWorkersTab({ user }: { user: any }) {
           </View>
         )}
       </ScrollView>
+    <Modal visible={showHireFee} animationType="slide" transparent onRequestClose={() => setShowHireFee(false)}>
+      <View style={{flex:1,backgroundColor:'rgba(0,0,0,0.55)',justifyContent:'flex-end'}}>
+        <View style={{backgroundColor:'#fff',borderTopLeftRadius:24,borderTopRightRadius:24,padding:28}}>
+          <TouchableOpacity style={{position:'absolute',top:20,right:20,padding:8}} onPress={() => setShowHireFee(false)}>
+            <Text style={{fontSize:18,color:'#999'}}>✕</Text>
+          </TouchableOpacity>
+          <Text style={{fontSize:32,textAlign:'center',marginBottom:12}}>🤝</Text>
+          <Text style={{fontSize:22,fontWeight:'bold',color:DARK,textAlign:'center',marginBottom:8}}>One-time Hire Fee</Text>
+          <Text style={{fontSize:14,color:'#666',textAlign:'center',lineHeight:20,marginBottom:24}}>
+            Pay a one-time $149 fee to unlock sending offers for this listing. Covers unlimited offers for this listing.
+          </Text>
+          <View style={{backgroundColor:'#F8F9FA',borderRadius:12,padding:16,marginBottom:20}}>
+            {['Unlimited offers for this listing','Direct contact with matched workers','Only pay when ready to hire'].map(f => (
+              <View key={f} style={{flexDirection:'row',alignItems:'center',marginBottom:8}}>
+                <Text style={{color:'#27AE60',fontSize:16,fontWeight:'bold',marginRight:10}}>✓</Text>
+                <Text style={{fontSize:14,color:'#444'}}>{f}</Text>
+              </View>
+            ))}
+          </View>
+          <TouchableOpacity
+            style={{backgroundColor:'#FF6B00',padding:16,borderRadius:12,alignItems:'center',opacity:hireFeeLoading?0.6:1}}
+            onPress={payHireFee}
+            disabled={hireFeeLoading}
+          >
+            {hireFeeLoading
+              ? <ActivityIndicator color="#fff"/>
+              : <Text style={{color:'#fff',fontSize:16,fontWeight:'bold'}}>Pay $149 — Unlock Hiring</Text>
+            }
+          </TouchableOpacity>
+          <Text style={{textAlign:'center',color:'#999',fontSize:12,marginTop:12}}>One-time per listing. No recurring charges.</Text>
+        </View>
+      </View>
+    </Modal>
     <UpgradeModal
       visible={showUpgrade}
       onClose={() => setShowUpgrade(false)}
