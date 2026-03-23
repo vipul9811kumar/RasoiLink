@@ -469,7 +469,19 @@ let event: any;
           await query(
             `UPDATE app.listings SET hire_fee_paid = true WHERE listing_id = $1`,
             [session.metadata.listing_id],
-          ).catch(() => {}); // non-fatal if column doesn't exist yet
+          ).catch(() => {});
+        }
+
+        // For job boost — mark listing as boosted for 7 days
+        if (tx_type === 'job_boost' && session.metadata?.listing_id) {
+          await query(
+            `UPDATE app.listings 
+              SET is_boosted = true, 
+                  boosted_until = now() + interval '7 days'
+              WHERE listing_id = $1`,
+            [session.metadata.listing_id],
+          ).catch(() => {});
+          app.log.info(`Listing ${session.metadata.listing_id} boosted for 7 days`);
         }
 
         app.log.info(`One-time payment ${tx_type} recorded for user ${user_id}`);

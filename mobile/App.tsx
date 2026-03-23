@@ -406,6 +406,21 @@ function OwnerListings({ user }: { user: any }) {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ title:'', city:'', state:'NJ', pay_min:'500', pay_max:'700', hours:'40', description_en:'' });
   const [submitting, setSubmitting] = useState(false);
+  const [boosting, setBoosting] = useState<string|null>(null);
+
+  async function boostListing(listing_id: string) {
+    setBoosting(listing_id);
+    try {
+      const res = await api.post('/listings/' + listing_id + '/boost', {
+        success_url: 'https://rasoilink-production.up.railway.app/health',
+        cancel_url: 'https://rasoilink-production.up.railway.app/health',
+      });
+      const url = res.data?.data?.url;
+      if (url) await Linking.openURL(url);
+    } catch(e: any) {
+      alert(e.response?.data?.error ?? 'Could not start boost checkout');
+    } finally { setBoosting(null); }
+  }
 
   function load() {
     setLoading(true);
@@ -480,6 +495,23 @@ function OwnerListings({ user }: { user: any }) {
           </View>
           <Text style={s.cardSub}>{job.city}, {job.state}</Text>
           <Text style={s.cardPay}>${Math.round(job.pay_min_cents/100)}–${Math.round(job.pay_max_cents/100)}/week</Text>
+          {job.is_boosted && job.boosted_until && (
+            <View style={{backgroundColor:'#FFF3E0',borderRadius:6,padding:6,marginTop:6}}>
+              <Text style={{fontSize:12,color:'#E65100',fontWeight:'600'}}>🚀 Boosted until {new Date(job.boosted_until).toLocaleDateString()}</Text>
+            </View>
+          )}
+          {job.status === 'active' && !job.is_boosted && (
+            <TouchableOpacity
+              style={{marginTop:10,backgroundColor:'#FFF3E0',borderWidth:1,borderColor:'#FFE0B2',borderRadius:8,padding:10,alignItems:'center'}}
+              onPress={() => boostListing(job.listing_id)}
+              disabled={boosting === job.listing_id}
+            >
+              {boosting === job.listing_id
+                ? <ActivityIndicator color="#FF6B00"/>
+                : <Text style={{color:'#E65100',fontWeight:'700',fontSize:13}}>🚀 Boost this listing — $29 / 7 days</Text>
+              }
+            </TouchableOpacity>
+          )}
         </View>
       ))}
       {listings.length===0 && <Text style={s.emptyText}>No listings yet. Post your first job!</Text>}
@@ -704,6 +736,11 @@ function JobsTab({ user }: { user: any }) {
             )}
           </View>
           <Text style={s.cardSub}>{job.restaurant_name} • {job.city}, {job.state}</Text>
+          {job.is_boosted && (
+            <View style={{backgroundColor:'#FFF3E0',borderRadius:6,paddingHorizontal:8,paddingVertical:3,marginBottom:4,alignSelf:'flex-start'}}>
+              <Text style={{fontSize:11,color:'#E65100',fontWeight:'700'}}>🚀 Featured</Text>
+            </View>
+          )}
           <Text style={s.cardPay}>${Math.round(job.pay_min_cents/100)}–${Math.round(job.pay_max_cents/100)}/week</Text>
           {job.accommodation_provided && <Text style={s.badge}>🏠 Accommodation included</Text>}
           <Text style={s.cardSub}>⭐ Owner trust: {job.owner_trust_score}</Text>
