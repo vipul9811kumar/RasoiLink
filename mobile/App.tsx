@@ -7,7 +7,7 @@ import { Platform, Linking } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import axios from 'axios';
 
-const API_URL = 'https://turbo-memory-x5jr77jv5j4j3rw4-3000.app.github.dev';
+const API_URL = 'https://rasoilink-production.up.railway.app';
 const ORANGE = '#FF6B00';
 const GREEN  = '#2ECC71';
 const DARK   = '#1A1A2E';

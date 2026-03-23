@@ -403,16 +403,11 @@ export async function payRoutes(app: FastifyInstance) {
 
 
 let event: any;
-    if (process.env.NODE_ENV !== 'production') {
-      event = JSON.parse((rawBody as Buffer).toString());
-      app.log.info('Dev mode: skipping signature check');
-    } else {
-      try {
-        event = stripe.webhooks.constructEvent(rawBody, sig, secret);
-      } catch (err: any) {
-        app.log.warn(`Webhook signature failed: ${err.message}`);
-        return reply.status(400).send({ error: `Webhook Error: ${err.message}` });
-      }
+    try {
+      event = stripe.webhooks.constructEvent(rawBody, sig, secret);
+    } catch (err: any) {
+      app.log.warn(`Webhook signature failed: ${err.message}`);
+      return reply.status(400).send({ error: `Webhook Error: ${err.message}` });
     }
 
     app.log.info(`Stripe event: ${event.type}`);
