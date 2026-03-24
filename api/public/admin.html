@@ -739,7 +739,7 @@ async function loadUsers() {
     <div class="table-scroll">
       <table>
         <thead><tr>
-          <th>Name</th><th>Phone</th><th>Type</th><th>Plan</th>
+          <th>Name</th><th>Phone</th><th>Type</th><th>Location</th><th>Plan</th>
           <th>Trust</th><th>Verified</th><th>Joined</th>
         </tr></thead>
         <tbody>
@@ -748,6 +748,7 @@ async function loadUsers() {
               <td style="font-weight:500">${esc(u.name || '—')}</td>
               <td style="color:var(--muted)">${esc(u.phone || '—')}</td>
               <td><span class="badge badge-${u.user_type}">${u.user_type}</span></td>
+              <td style="color:var(--muted)">${esc(u.location || '—')}</td>
               <td>${u.plan ? `<span class="badge badge-plan">${esc(u.plan)}</span>` : '<span style="color:var(--muted)">free</span>'}</td>
               <td>${u.trust_score ?? '—'}</td>
               <td><span class="verified-dot ${u.is_verified ? 'verified-yes' : 'verified-no'}" title="${u.is_verified ? 'Verified' : 'Unverified'}"></span></td>

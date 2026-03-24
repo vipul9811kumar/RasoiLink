@@ -123,35 +123,45 @@ export async function adminRoutes(app: FastifyInstance) {
     const type   = req.query.type   as string | undefined;
     const search = req.query.search as string | undefined;
 
-    // Build WHERE clause
+    // Build WHERE clause using filterParams ($1, $2, ...) for the count query.
+    // The main query prepends limit/offset, so we shift indices by +2 for it.
+    const filterParams: unknown[] = [];
     const conditions: string[] = [];
-    const params: unknown[] = [limit, offset];
 
     if (type && type !== '') {
-      params.push(type);
-      conditions.push(`u.user_type = $${params.length}`);
+      filterParams.push(type);
+      conditions.push(`u.user_type = $${filterParams.length}`);
     }
     if (search && search !== '') {
-      params.push(`%${search}%`);
-      conditions.push(`(u.name ILIKE $${params.length} OR u.phone ILIKE $${params.length})`);
+      filterParams.push(`%${search}%`);
+      conditions.push(`(u.name ILIKE $${filterParams.length} OR u.phone ILIKE $${filterParams.length})`);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    // Shift $N -> $N+2 so LIMIT=$1 OFFSET=$2 don't conflict
+    const whereShifted = whereClause.replace(/\$(\d+)/g, (_: string, n: string) => `$${parseInt(n, 10) + 2}`);
 
     const [rowsRes, countRes] = await Promise.all([
       query(
         `SELECT u.user_id, u.name, u.phone, u.user_type, u.trust_score, u.is_verified, u.created_at,
-                s.plan_id as plan
+                s.plan_id as plan,
+                CASE
+                  WHEN u.user_type = 'owner' THEN
+                    NULLIF(TRIM(COALESCE(op.city,'') || CASE WHEN op.city IS NOT NULL AND op.state IS NOT NULL THEN ', ' ELSE '' END || COALESCE(op.state,'')), '')
+                  ELSE wp.current_state
+                END as location
          FROM app.users u
          LEFT JOIN app.subscriptions s ON s.user_id = u.user_id AND s.status = 'active'
-         ${whereClause}
+         LEFT JOIN app.worker_profiles wp ON wp.user_id = u.user_id
+         LEFT JOIN app.owner_profiles op ON op.user_id = u.user_id
+         ${whereShifted}
          ORDER BY u.created_at DESC
          LIMIT $1 OFFSET $2`,
-        params,
+        [limit, offset, ...filterParams],
       ),
       query(
         `SELECT COUNT(*) FROM app.users u ${whereClause}`,
-        params.slice(2), // drop limit/offset
+        filterParams,
       ),
     ]);
 
