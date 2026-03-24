@@ -13,6 +13,7 @@ import { notificationRoutes } from './routes/notifications.js';
 import { otpRoutes }           from './routes/otp.js';
 import { waitlistRoutes }      from './routes/waitlist.js';
 import { devRoutes }           from './routes/dev.js';
+import { adminRoutes }         from './routes/admin.js';
 import { AuthUser } from './types.js';
 
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
@@ -70,6 +71,7 @@ await app.register(notificationRoutes);
 await app.register(otpRoutes);
 await app.register(waitlistRoutes);
 await app.register(devRoutes);
+await app.register(adminRoutes);
 
 try {
   await app.listen({ port: PORT, host: process.env.HOST ?? '0.0.0.0' });
