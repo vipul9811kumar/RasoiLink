@@ -33,14 +33,18 @@ export async function waitlistRoutes(app: FastifyInstance) {
       `Questions? Reply to this message.\n` +
       `_Reply STOP to unsubscribe_`;
 
+    let whatsapp_error: string | null = null;
     if (WHATSAPP_ENABLED) {
-      sendWhatsApp(phone, message).catch(e =>
-        console.error('[Waitlist WhatsApp] failed:', e),
-      );
+      try {
+        await sendWhatsApp(phone, message);
+      } catch(e: any) {
+        whatsapp_error = e?.message ?? 'unknown error';
+        console.error('[Waitlist WhatsApp] failed:', e);
+      }
     } else {
       console.log(`[Waitlist] Would send WhatsApp to ${phone}:\n${message}`);
     }
 
-    return reply.send({ success: true, data: { queued: true, whatsapp_enabled: WHATSAPP_ENABLED }, error: null });
+    return reply.send({ success: true, data: { queued: true, whatsapp_enabled: WHATSAPP_ENABLED, whatsapp_error }, error: null });
   });
 }
