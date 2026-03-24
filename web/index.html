@@ -2224,10 +2224,10 @@
       console.warn('⚠️ EmailJS error:', e.message);
     }
 
-    // ——— 3. SEND WHATSAPP INVITE ———
+    // ——— 3. SEND WHATSAPP INVITE via Railway API ———
     if (phone) {
       try {
-        await fetch('/.netlify/functions/waitlist', {
+        await fetch('https://rasoilink-production.up.railway.app/waitlist/join', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, phone, type }),
