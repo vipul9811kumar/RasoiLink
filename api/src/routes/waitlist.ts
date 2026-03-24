@@ -45,6 +45,7 @@ export async function waitlistRoutes(app: FastifyInstance) {
       console.log(`[Waitlist] Would send WhatsApp to ${phone}:\n${message}`);
     }
 
-    return reply.send({ success: true, data: { queued: true, whatsapp_enabled: WHATSAPP_ENABLED, whatsapp_from: WHATSAPP_FROM, whatsapp_error }, error: null });
+    const sid_hint = process.env.TWILIO_ACCOUNT_SID?.slice(0, 10) + '...';
+    return reply.send({ success: true, data: { queued: true, whatsapp_enabled: WHATSAPP_ENABLED, whatsapp_from: WHATSAPP_FROM, sid_hint, whatsapp_error }, error: null });
   });
 }
