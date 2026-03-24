@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { query } from '../db.js';
 import { getPlanFeatures, getActiveListingCount, planGateResponse } from '../gates.js';
 import { stripe } from '../stripe.js';
+import { notifyMatchingWorkers } from '../alerting.js';
 
 const CreateListingSchema = z.object({
   title:                    z.string().min(3),
@@ -110,7 +111,15 @@ export async function listingRoutes(app: FastifyInstance) {
       ],
     );
 
-    return reply.status(201).send({ success: true, data: result.rows[0], error: null });
+    const listing = result.rows[0];
+
+    // Fire WhatsApp alerts to matching workers in the background — don't block response
+    notifyMatchingWorkers(
+      listing.listing_id, listing.state, listing.role_code,
+      listing.title, listing.city, listing.pay_min_cents, listing.pay_max_cents,
+    ).catch(e => req.log.warn({ err: e }, 'WhatsApp worker alert failed'));
+
+    return reply.status(201).send({ success: true, data: listing, error: null });
   });
 
   // PATCH /listings/:listing_id/status

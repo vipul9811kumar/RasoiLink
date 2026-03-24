@@ -1,4 +1,5 @@
 import { createNotification } from './notifications.js';
+import { notifyOwnerNewApplication } from '../alerting.js';
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { query } from '../db.js';
@@ -50,15 +51,23 @@ export async function offerRoutes(app: FastifyInstance) {
     const listingRes = await query('SELECT owner_id, title FROM app.listings WHERE listing_id = $1', [req.params.id]);
     const workerRes  = await query('SELECT name FROM app.users WHERE user_id = $1', [user_id]);
     if (listingRes.rows.length) {
+      const owner_id    = listingRes.rows[0].owner_id;
+      const workerName  = workerRes.rows[0]?.name ?? 'A worker';
+      const listingTitle = listingRes.rows[0].title;
+
       await createNotification({
-        user_id: listingRes.rows[0].owner_id,
+        user_id: owner_id,
         event_type: 'new_application',
-        title: '\u{1F468}\u200D\u{1F373} New Application!',
-        body: `${workerRes.rows[0]?.name} applied for ${listingRes.rows[0].title}`,
+        title: '👨‍🍳 New Application!',
+        body: `${workerName} applied for ${listingTitle}`,
         related_entity_id: result.rows[0].offer_id,
         related_entity_type: 'offer',
         dedup_key: `apply_${req.params.id}_${user_id}`,
       });
+
+      // WhatsApp alert to owner if on Growth plan — fire and forget
+      notifyOwnerNewApplication(owner_id, workerName, listingTitle)
+        .catch(e => console.error('WhatsApp owner alert failed:', e));
     }
     return reply.status(201).send({ success: true, data: result.rows[0], error: null });
   });
