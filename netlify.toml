@@ -1,5 +1,6 @@
 [build]
   publish = "web"
+  functions = "web/netlify/functions"
   command = "echo 'Static site — no build needed'"
 
 [[redirects]]
