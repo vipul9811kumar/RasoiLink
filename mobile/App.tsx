@@ -1413,7 +1413,7 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
         <Text style={[s.formLabel,{marginBottom:10}]}>🆘 Support</Text>
         <TouchableOpacity
           style={{flexDirection:'row',alignItems:'center',backgroundColor:'#25D366',borderRadius:12,padding:16,marginBottom:10}}
-          onPress={() => Linking.openURL('https://wa.me/919199168849?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
+          onPress={() => Linking.openURL('https://wa.me/19199168849?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
         >
           <Text style={{fontSize:20,marginRight:10}}>💬</Text>
           <View>
