@@ -1764,41 +1764,6 @@ function BrowseWorkersTab({ user }: { user: any }) {
               </View>
             </View>
 
-            {/* Sort By */}
-            <View>
-              <Text style={[s.formLabel,{marginBottom:4}]}>Sort By</Text>
-              <View style={{flexDirection:'row',flexWrap:'wrap',gap:6}}>
-                {([
-                  {v:'trust_score',label:'Trust Score'},
-                  {v:'years_experience',label:'Experience'},
-                  {v:'salary_min_cents',label:'Salary'},
-                  {v:'profile_completeness',label:'Profile %'},
-                  {v:'updated_at',label:'Recently Updated'},
-                ] as const).map(({v,label})=>(
-                  <TouchableOpacity key={v}
-                    style={{paddingVertical:6,paddingHorizontal:12,borderRadius:20,borderWidth:1,
-                      borderColor: filters.sort_by===v ? DARK : '#ccc',
-                      backgroundColor: filters.sort_by===v ? DARK : '#fff'}}
-                    onPress={()=>setFilters(p=>({...p,sort_by:v}))}>
-                    <Text style={{color: filters.sort_by===v?'#fff':'#555',fontSize:12}}>{label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Sort Direction */}
-            <View style={{flexDirection:'row',gap:8}}>
-              {([{v:'desc',label:'High → Low'},{v:'asc',label:'Low → High'}] as const).map(({v,label})=>(
-                <TouchableOpacity key={v}
-                  style={{flex:1,paddingVertical:7,borderRadius:8,borderWidth:1,alignItems:'center',
-                    borderColor: filters.sort_dir===v ? ORANGE : '#ccc',
-                    backgroundColor: filters.sort_dir===v ? '#FFF3E0' : '#fff'}}
-                  onPress={()=>setFilters(p=>({...p,sort_dir:v}))}>
-                  <Text style={{color: filters.sort_dir===v?ORANGE:'#555',fontSize:12,fontWeight:'600'}}>{label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
             {/* Reset */}
             <TouchableOpacity
               style={{alignSelf:'center',paddingVertical:6,paddingHorizontal:20}}
@@ -1812,6 +1777,47 @@ function BrowseWorkersTab({ user }: { user: any }) {
             </TouchableOpacity>
           </View>
         )}
+
+        {/* ── Sort bar — always visible ── */}
+        <View style={{borderTopWidth:1,borderColor:'#eee',paddingHorizontal:10,paddingVertical:8}}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom:6}}>
+            <View style={{flexDirection:'row',gap:6,alignItems:'center'}}>
+              <Text style={{fontSize:11,color:'#999',marginRight:2}}>Sort:</Text>
+              {([
+                {v:'trust_score',     label:'⭐ Trust'},
+                {v:'years_experience',label:'⏱ Experience'},
+                {v:'salary_min_cents',label:'💰 Salary'},
+                {v:'profile_completeness', label:'✅ Profile'},
+                {v:'updated_at',      label:'🕒 Newest'},
+              ] as const).map(({v,label})=>{
+                const active = filters.sort_by === v;
+                return (
+                  <TouchableOpacity key={v}
+                    style={{paddingVertical:5,paddingHorizontal:12,borderRadius:20,borderWidth:1,
+                      borderColor: active ? DARK : '#ccc',
+                      backgroundColor: active ? DARK : '#fff'}}
+                    onPress={()=>{ const f={...filters,sort_by:v}; setFilters(f); load(f); }}>
+                    <Text style={{color: active?'#fff':'#555',fontSize:12,fontWeight: active?'700':'400'}}>
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+          {/* Direction toggle */}
+          <View style={{flexDirection:'row',gap:6}}>
+            {([{v:'desc',label:'▼ High → Low'},{v:'asc',label:'▲ Low → High'}] as const).map(({v,label})=>(
+              <TouchableOpacity key={v}
+                style={{flex:1,paddingVertical:5,borderRadius:8,borderWidth:1,alignItems:'center',
+                  borderColor: filters.sort_dir===v ? ORANGE : '#eee',
+                  backgroundColor: filters.sort_dir===v ? '#FFF3E0' : '#fafafa'}}
+                onPress={()=>{ const f={...filters,sort_dir:v}; setFilters(f); load(f); }}>
+                <Text style={{color: filters.sort_dir===v?ORANGE:'#999',fontSize:11,fontWeight:'600'}}>{label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
       </View>
 
       <ScrollView style={{flex:1}}>
