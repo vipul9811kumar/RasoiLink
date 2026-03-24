@@ -38,6 +38,7 @@ export const listings = {
   list:   (params?: object) => api.get('/listings', { params }),
   get:    (id: string)      => api.get(`/listings/${id}`),
   create: (data: object)    => api.post('/listings', data),
+  update: (id: string, data: object) => api.patch(`/listings/${id}`, data),
   status: (id: string, status: string) =>
     api.patch(`/listings/${id}/status`, { status }),
   score:  (id: string)      => api.get(`/listings/${id}/score`),

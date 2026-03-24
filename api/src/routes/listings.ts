@@ -229,4 +229,56 @@ export async function listingRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: { url: session.url, session_id: session.id }, error: null });
   });
 
+  // PATCH /listings/:listing_id — owner edits a listing
+  app.patch<{ Params: { listing_id: string } }>('/listings/:listing_id', {
+    preHandler: [app.authenticate],
+  }, async (req: any, reply) => {
+    const { listing_id } = req.params;
+
+    // Verify owner owns this listing
+    const check = await query(
+      'SELECT owner_id FROM app.listings WHERE listing_id = $1',
+      [listing_id]
+    );
+    if (!check.rows.length) {
+      return reply.status(404).send({ success: false, error: 'Listing not found', data: null });
+    }
+    if (check.rows[0].owner_id !== req.user.user_id) {
+      return reply.status(403).send({ success: false, error: 'Forbidden', data: null });
+    }
+
+    const allowed = [
+      'title', 'city', 'state', 'pay_min_cents', 'pay_max_cents',
+      'hours_per_week', 'description_en', 'role_code', 'cuisine_required',
+      'accommodation_provided', 'accommodation_address', 'accommodation_cost_cents',
+      'years_exp_required', 'notice_period_weeks', 'languages_preferred', 'pay_frequency',
+    ];
+
+    const body = req.body as any;
+    const setClauses: string[] = [];
+    const values: unknown[] = [];
+    let i = 1;
+
+    for (const key of allowed) {
+      if (body[key] !== undefined) {
+        setClauses.push(key + ' = $' + i++);
+        values.push(body[key]);
+      }
+    }
+
+    if (setClauses.length === 0) {
+      return reply.status(400).send({ success: false, error: 'No fields to update', data: null });
+    }
+
+    setClauses.push('updated_at = now()');
+    values.push(listing_id);
+
+    const result = await query(
+      'UPDATE app.listings SET ' + setClauses.join(', ') + ' WHERE listing_id = $' + i + ' RETURNING *',
+      values,
+    );
+
+    return reply.send({ success: true, data: result.rows[0], error: null });
+  });
+
 }

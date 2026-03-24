@@ -407,6 +407,8 @@ function OwnerListings({ user }: { user: any }) {
   const [form, setForm] = useState({ title:'', city:'', state:'NJ', pay_min:'500', pay_max:'700', hours:'40', description_en:'' });
   const [submitting, setSubmitting] = useState(false);
   const [boosting, setBoosting] = useState<string|null>(null);
+  const [editingListing, setEditingListing] = useState<any|null>(null);
+  const [editForm, setEditForm] = useState({ title:'', city:'', state:'', pay_min:'', pay_max:'', hours:'', description_en:'' });
 
   async function boostListing(listing_id: string) {
     setBoosting(listing_id);
@@ -429,6 +431,38 @@ function OwnerListings({ user }: { user: any }) {
   }
   useEffect(()=>{load();},[]);
 
+  function openEdit(job: any) {
+    setEditForm({
+      title: job.title ?? '',
+      city: job.city ?? '',
+      state: job.state ?? '',
+      pay_min: String(Math.round(job.pay_min_cents / 100)),
+      pay_max: String(Math.round(job.pay_max_cents / 100)),
+      hours: String(job.hours_per_week ?? ''),
+      description_en: job.description_en ?? '',
+    });
+    setEditingListing(job);
+  }
+
+  async function saveEdit() {
+    if (!editingListing) return;
+    setSubmitting(true);
+    try {
+      await api.patch(`/listings/${editingListing.listing_id}`, {
+        title: editForm.title,
+        city: editForm.city,
+        state: editForm.state,
+        pay_min_cents: Math.round(parseFloat(editForm.pay_min) * 100),
+        pay_max_cents: Math.round(parseFloat(editForm.pay_max) * 100),
+        hours_per_week: parseInt(editForm.hours),
+        description_en: editForm.description_en,
+      });
+      setEditingListing(null);
+      load();
+    } catch (e: any) { alert(e.response?.data?.error ?? 'Failed to update listing'); }
+    finally { setSubmitting(false); }
+  }
+
   async function postJob() {
     setSubmitting(true);
     try {
@@ -448,6 +482,40 @@ function OwnerListings({ user }: { user: any }) {
   }
 
   if (loading) return <View style={s.center}><ActivityIndicator color={DARK}/></View>;
+
+  if (editingListing) return (
+    <ScrollView style={{flex:1}} contentContainerStyle={{padding:16}}>
+      <Text style={s.sectionTitle}>Edit Listing</Text>
+      {([
+        {key:'title',label:'Job Title',placeholder:'e.g. Tandoor Chef'},
+        {key:'city',label:'City',placeholder:'e.g. Edison'},
+        {key:'state',label:'State',placeholder:'NJ'},
+        {key:'pay_min',label:'Min Pay ($/week)',placeholder:'500'},
+        {key:'pay_max',label:'Max Pay ($/week)',placeholder:'700'},
+        {key:'hours',label:'Hours/Week',placeholder:'40'},
+        {key:'description_en',label:'Description',placeholder:'Describe the role...'},
+      ] as const).map(f => (
+        <View key={f.key} style={{marginBottom:12}}>
+          <Text style={s.formLabel}>{f.label}</Text>
+          <TextInput
+            style={[s.input, f.key==='description_en' && {height:80,textAlignVertical:'top'}]}
+            placeholder={f.placeholder}
+            value={editForm[f.key]}
+            onChangeText={v => setEditForm(p => ({...p,[f.key]:v}))}
+            multiline={f.key==='description_en'}
+          />
+        </View>
+      ))}
+      <View style={{flexDirection:'row',gap:8}}>
+        <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:'#ccc'}]} onPress={()=>setEditingListing(null)}>
+          <Text style={[s.btnText,{color:'#333'}]}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:DARK}]} onPress={saveEdit} disabled={submitting}>
+          {submitting?<ActivityIndicator color="#fff"/>:<Text style={s.btnText}>Save Changes</Text>}
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
 
   if (showForm) return (
     <ScrollView style={{flex:1}} contentContainerStyle={{padding:16}}>
@@ -513,6 +581,12 @@ function OwnerListings({ user }: { user: any }) {
               }
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            style={{marginTop:8,borderWidth:1,borderColor:'#ccc',borderRadius:8,padding:8,alignItems:'center'}}
+            onPress={() => openEdit(job)}
+          >
+            <Text style={{color:'#555',fontWeight:'600',fontSize:13}}>Edit Listing</Text>
+          </TouchableOpacity>
         </View>
       ))}
       {listings.length===0 && <Text style={s.emptyText}>No listings yet. Post your first job!</Text>}
