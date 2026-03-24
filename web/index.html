@@ -1021,6 +1021,123 @@
     transition: all 0.3s;
   }
 
+  /* ============ BETA GET STARTED ============ */
+  .beta-section {
+    padding: 100px 60px;
+    background: var(--cream-dark);
+    text-align: center;
+  }
+
+  .beta-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+    margin-top: 64px;
+    max-width: 960px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .beta-path {
+    background: white;
+    border-radius: 24px;
+    padding: 40px 36px;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 30px rgba(0,0,0,0.05);
+    text-align: left;
+  }
+
+  .beta-path-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .beta-path-icon {
+    width: 52px; height: 52px;
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px;
+    flex-shrink: 0;
+  }
+  .beta-path-icon.worker { background: rgba(255,107,43,0.1); }
+  .beta-path-icon.owner  { background: rgba(15,28,46,0.08); }
+
+  .beta-path-title { font-size: 20px; font-weight: 700; color: var(--charcoal); }
+  .beta-path-sub   { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  .beta-steps { display: flex; flex-direction: column; gap: 0; }
+
+  .beta-step {
+    display: flex;
+    gap: 16px;
+    position: relative;
+    padding-bottom: 24px;
+  }
+  .beta-step:last-child { padding-bottom: 0; }
+
+  .beta-step-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex-shrink: 0;
+  }
+
+  .beta-step-num {
+    width: 32px; height: 32px;
+    border-radius: 50%;
+    background: var(--saffron);
+    color: white;
+    font-size: 13px;
+    font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .beta-step-line {
+    width: 2px;
+    flex: 1;
+    background: linear-gradient(to bottom, rgba(255,107,43,0.25), rgba(255,107,43,0.05));
+    margin-top: 8px;
+    margin-bottom: 0;
+    min-height: 20px;
+  }
+  .beta-step:last-child .beta-step-line { display: none; }
+
+  .beta-step-body { padding-top: 6px; }
+  .beta-step-title { font-size: 15px; font-weight: 600; color: var(--charcoal); margin-bottom: 4px; }
+  .beta-step-desc  { font-size: 13px; line-height: 1.6; color: var(--muted); }
+
+  .beta-badge {
+    display: inline-block;
+    margin-top: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(39,174,96,0.1);
+    color: var(--green);
+    border: 1px solid rgba(39,174,96,0.2);
+  }
+
+  .beta-note {
+    margin-top: 40px;
+    padding: 20px 28px;
+    background: rgba(255,107,43,0.06);
+    border: 1px solid rgba(255,107,43,0.15);
+    border-radius: 14px;
+    font-size: 14px;
+    color: var(--slate);
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.7;
+  }
+  .beta-note strong { color: var(--saffron); }
+
   /* ============ RESPONSIVE ============ */
   @media (max-width: 1024px) {
     .trust-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1028,6 +1145,8 @@
   }
 
   @media (max-width: 900px) {
+    .beta-grid { grid-template-columns: 1fr; }
+    .beta-section { padding: 60px 24px; }
     nav, .section, .how-section, .match-section, .trust-section,
     .lang-section, .cta-section, .proof-section { padding: 60px 24px; }
     nav { padding: 20px 24px; }
@@ -1617,6 +1736,151 @@
       </div>
     </div>
   </div>
+</section>
+
+<!-- GET STARTED IN BETA -->
+<section class="beta-section">
+  <span class="section-label">Beta Access</span>
+  <h2 class="section-title">How to get started<br>in the Beta</h2>
+  <p class="section-sub">RasoiLink is live in private beta. Here's exactly how to register and start using the platform — takes less than 5 minutes.</p>
+
+  <div class="beta-grid">
+
+    <!-- WORKER PATH -->
+    <div class="beta-path reveal">
+      <div class="beta-path-header">
+        <div class="beta-path-icon worker">👨‍🍳</div>
+        <div>
+          <div class="beta-path-title">For Workers</div>
+          <div class="beta-path-sub">Cooks, chefs, kitchen staff</div>
+        </div>
+      </div>
+      <div class="beta-steps">
+        <div class="beta-step">
+          <div class="beta-step-left">
+            <div class="beta-step-num">1</div>
+            <div class="beta-step-line"></div>
+          </div>
+          <div class="beta-step-body">
+            <div class="beta-step-title">Join the waitlist below</div>
+            <div class="beta-step-desc">Fill in your name, phone, role and state. Takes 30 seconds.</div>
+          </div>
+        </div>
+        <div class="beta-step">
+          <div class="beta-step-left">
+            <div class="beta-step-num">2</div>
+            <div class="beta-step-line"></div>
+          </div>
+          <div class="beta-step-body">
+            <div class="beta-step-title">Receive your invite on WhatsApp</div>
+            <div class="beta-step-desc">We'll send you a direct download link and a one-time access code within 24 hours.</div>
+            <span class="beta-badge">✓ No app store needed</span>
+          </div>
+        </div>
+        <div class="beta-step">
+          <div class="beta-step-left">
+            <div class="beta-step-num">3</div>
+            <div class="beta-step-line"></div>
+          </div>
+          <div class="beta-step-body">
+            <div class="beta-step-title">Sign in with your phone number</div>
+            <div class="beta-step-desc">No password needed. Enter your phone → get an OTP → you're in.</div>
+          </div>
+        </div>
+        <div class="beta-step">
+          <div class="beta-step-left">
+            <div class="beta-step-num">4</div>
+            <div class="beta-step-line"></div>
+          </div>
+          <div class="beta-step-body">
+            <div class="beta-step-title">Build your profile in your language</div>
+            <div class="beta-step-desc">Choose your role, experience, preferred states, and salary range. Our AI fills in the rest.</div>
+          </div>
+        </div>
+        <div class="beta-step">
+          <div class="beta-step-left">
+            <div class="beta-step-num">5</div>
+            <div class="beta-step-line"></div>
+          </div>
+          <div class="beta-step-body">
+            <div class="beta-step-title">Browse jobs & get WhatsApp alerts</div>
+            <div class="beta-step-desc">Apply to listings directly. Matching jobs ping you on WhatsApp the moment they're posted.</div>
+            <span class="beta-badge">✓ Free to use</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- OWNER PATH -->
+    <div class="beta-path reveal">
+      <div class="beta-path-header">
+        <div class="beta-path-icon owner">🏪</div>
+        <div>
+          <div class="beta-path-title">For Restaurant Owners</div>
+          <div class="beta-path-sub">Restaurants, dhabas, catering</div>
+        </div>
+      </div>
+      <div class="beta-steps">
+        <div class="beta-step">
+          <div class="beta-step-left">
+            <div class="beta-step-num">1</div>
+            <div class="beta-step-line"></div>
+          </div>
+          <div class="beta-step-body">
+            <div class="beta-step-title">Join the waitlist below</div>
+            <div class="beta-step-desc">Enter your name, restaurant name, and phone. 30 seconds flat.</div>
+          </div>
+        </div>
+        <div class="beta-step">
+          <div class="beta-step-left">
+            <div class="beta-step-num">2</div>
+            <div class="beta-step-line"></div>
+          </div>
+          <div class="beta-step-body">
+            <div class="beta-step-title">Receive your invite on WhatsApp</div>
+            <div class="beta-step-desc">We'll send you a direct download link and access code within 24 hours.</div>
+            <span class="beta-badge">✓ No app store needed</span>
+          </div>
+        </div>
+        <div class="beta-step">
+          <div class="beta-step-left">
+            <div class="beta-step-num">3</div>
+            <div class="beta-step-line"></div>
+          </div>
+          <div class="beta-step-body">
+            <div class="beta-step-title">Sign in with your phone number</div>
+            <div class="beta-step-desc">OTP login — no passwords, no hassle.</div>
+          </div>
+        </div>
+        <div class="beta-step">
+          <div class="beta-step-left">
+            <div class="beta-step-num">4</div>
+            <div class="beta-step-line"></div>
+          </div>
+          <div class="beta-step-body">
+            <div class="beta-step-title">Set up your restaurant profile</div>
+            <div class="beta-step-desc">Add your restaurant name, city, cuisine type, and payment practices. Builds your trust score from day one.</div>
+          </div>
+        </div>
+        <div class="beta-step">
+          <div class="beta-step-left">
+            <div class="beta-step-num">5</div>
+            <div class="beta-step-line"></div>
+          </div>
+          <div class="beta-step-body">
+            <div class="beta-step-title">Post a job & review applicants</div>
+            <div class="beta-step-desc">Your first listing is free. AI matches the best candidates — review profiles, send offers, and sign digital agreements in-app.</div>
+            <span class="beta-badge">✓ First listing free</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <p class="beta-note">
+    🔒 <strong>Beta is invite-only.</strong> We're onboarding restaurants and workers in batches to ensure quality matches. Join the waitlist now — spots are limited and filled in order of signup.
+  </p>
 </section>
 
 <!-- WAITLIST CTA -->
