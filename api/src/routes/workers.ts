@@ -140,12 +140,40 @@ export async function workerRoutes(app: FastifyInstance) {
 
     const plan = await getPlanFeatures(req.user.user_id);
 
-    const { state, role_code, limit = 20 } = req.query as any;
+    const {
+      state, role_code, cuisine,
+      min_exp, max_exp,
+      min_salary, max_salary,
+      needs_accommodation, willing_to_relocate, work_auth,
+      sort_by = 'trust_score', sort_dir = 'desc',
+      limit = 20,
+    } = req.query as any;
+
     const where = ["u.user_type = 'worker'", "wp.salary_min_cents > 0"];
     const params: any[] = [];
 
     if (state)     { params.push(state);     where.push(`wp.current_state = $${params.length}`); }
     if (role_code) { params.push(role_code); where.push(`wp.role_code = $${params.length}`); }
+    if (cuisine)   { params.push([cuisine]);  where.push(`wp.cuisine_specializations @> $${params.length}::TEXT[]`); }
+    if (min_exp)   { params.push(Number(min_exp)); where.push(`wp.years_experience >= $${params.length}`); }
+    if (max_exp)   { params.push(Number(max_exp)); where.push(`wp.years_experience <= $${params.length}`); }
+    if (min_salary){ params.push(Number(min_salary) * 100); where.push(`wp.salary_min_cents >= $${params.length}`); }
+    if (max_salary){ params.push(Number(max_salary) * 100); where.push(`wp.salary_max_cents <= $${params.length}`); }
+    if (needs_accommodation === 'true')  { where.push(`wp.needs_accommodation = true`); }
+    if (needs_accommodation === 'false') { where.push(`wp.needs_accommodation = false`); }
+    if (willing_to_relocate === 'true')  { where.push(`wp.willing_to_relocate = true`); }
+    if (work_auth) { params.push(work_auth); where.push(`wp.work_authorization = $${params.length}`); }
+
+    const SORT_COLS: Record<string, string> = {
+      trust_score:         'u.trust_score',
+      years_experience:    'wp.years_experience',
+      salary_min_cents:    'wp.salary_min_cents',
+      profile_completeness:'wp.profile_completeness',
+      updated_at:          'wp.updated_at',
+    };
+    const sortCol = SORT_COLS[sort_by] ?? 'u.trust_score';
+    const sortDir = sort_dir === 'asc' ? 'ASC' : 'DESC';
+
     params.push(limit);
 
     const result = await query(`
@@ -154,11 +182,11 @@ export async function workerRoutes(app: FastifyInstance) {
         wp.role_code, wp.years_experience, wp.cuisine_specializations,
         wp.current_state, wp.preferred_states, wp.willing_to_relocate,
         wp.salary_min_cents, wp.salary_max_cents, wp.needs_accommodation,
-        wp.profile_completeness
+        wp.profile_completeness, wp.work_authorization, wp.updated_at
       FROM app.users u
       JOIN app.worker_profiles wp ON u.user_id = wp.worker_id
       WHERE ${where.join(' AND ')}
-      ORDER BY u.trust_score DESC, wp.years_experience DESC
+      ORDER BY ${sortCol} ${sortDir} NULLS LAST
       LIMIT $${params.length}
     `, params);
 

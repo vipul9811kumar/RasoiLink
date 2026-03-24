@@ -1525,7 +1525,6 @@ function BrowseWorkersTab({ user }: { user: any }) {
   const [sent, setSent]             = useState<Set<string>>(new Set());
   const [listings, setListings]     = useState<any[]>([]);
   const [selectedListing, setSelectedListing] = useState<string>('');
-  const [filterState, setFilterState] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState('');
@@ -1534,15 +1533,43 @@ function BrowseWorkersTab({ user }: { user: any }) {
   const [hireFeeListingId, setHireFeeListingId] = useState('');
   const [hireFeeLoading, setHireFeeLoading] = useState(false);
 
-  function load(state='') {
+  // Filters & sort
+  const [filters, setFilters] = useState({
+    state: '', role_code: '', cuisine: '',
+    min_exp: '', max_exp: '',
+    min_salary: '', max_salary: '',
+    needs_accommodation: 'any',   // 'any' | 'true' | 'false'
+    willing_to_relocate: 'any',   // 'any' | 'true'
+    work_auth: '',
+    sort_by: 'trust_score',
+    sort_dir: 'desc',
+  });
+
+  function buildQuery(f = filters) {
+    const p: Record<string,string> = {};
+    if (f.state)               p.state = f.state;
+    if (f.role_code)           p.role_code = f.role_code;
+    if (f.cuisine)             p.cuisine = f.cuisine;
+    if (f.min_exp)             p.min_exp = f.min_exp;
+    if (f.max_exp)             p.max_exp = f.max_exp;
+    if (f.min_salary)          p.min_salary = f.min_salary;
+    if (f.max_salary)          p.max_salary = f.max_salary;
+    if (f.needs_accommodation !== 'any') p.needs_accommodation = f.needs_accommodation;
+    if (f.willing_to_relocate !== 'any') p.willing_to_relocate = f.willing_to_relocate;
+    if (f.work_auth)           p.work_auth = f.work_auth;
+    p.sort_by  = f.sort_by;
+    p.sort_dir = f.sort_dir;
+    const qs = Object.entries(p).map(([k,v])=>`${k}=${encodeURIComponent(v)}`).join('&');
+    return qs ? `?${qs}` : '';
+  }
+
+  function load(f = filters) {
     setLoading(true);
-    const params = state ? `?state=${state}` : '';
     Promise.all([
-      api.get(`/workers/search${params}`),
+      api.get(`/workers/search${buildQuery(f)}`),
       api.get(`/owners/${user.user_id}/listings`),
     ]).then(([w, l]) => {
       setWorkers(w.data.data ?? []);
-      console.log('planMeta from API:', JSON.stringify(w.data.meta));
       setPlanMeta(w.data.meta ?? null);
       const active = (l.data.data ?? []).filter((x:any) => x.status === 'active');
       setListings(active);
@@ -1624,18 +1651,157 @@ function BrowseWorkersTab({ user }: { user: any }) {
         </View>
       )}
       {/* Filter bar */}
-      <View style={s.filterBar}>
-        <TextInput
-          style={s.filterInput}
-          placeholder="Filter by state (e.g. NJ)"
-          value={filterState}
-          onChangeText={setFilterState}
-          onSubmitEditing={() => load(filterState)}
-          returnKeyType="search"
-        />
-        <TouchableOpacity style={[s.btn, {paddingVertical:8, paddingHorizontal:14, backgroundColor:DARK}]} onPress={() => load(filterState)}>
-          <Text style={s.btnText}>Search</Text>
-        </TouchableOpacity>
+      <View style={{backgroundColor:'#fff',borderBottomWidth:1,borderColor:'#eee'}}>
+        {/* Top row: quick state + toggle */}
+        <View style={{flexDirection:'row',alignItems:'center',padding:10,gap:8}}>
+          <TextInput
+            style={[s.filterInput,{flex:1}]}
+            placeholder="State (e.g. NJ)"
+            value={filters.state}
+            onChangeText={v=>setFilters(p=>({...p,state:v}))}
+            onSubmitEditing={()=>load()}
+            returnKeyType="search"
+            autoCapitalize="characters"
+            maxLength={2}
+          />
+          <TouchableOpacity
+            style={{paddingHorizontal:12,paddingVertical:8,borderRadius:8,borderWidth:1,
+              borderColor: showFilters ? DARK : '#ccc',
+              backgroundColor: showFilters ? DARK : '#fff'}}
+            onPress={()=>setShowFilters(p=>!p)}>
+            <Text style={{color: showFilters?'#fff':'#555',fontSize:13,fontWeight:'600'}}>
+              {showFilters ? 'Hide Filters' : 'Filters ▾'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.btn,{paddingVertical:8,paddingHorizontal:14,backgroundColor:DARK}]} onPress={()=>load()}>
+            <Text style={s.btnText}>Search</Text>
+          </TouchableOpacity>
+        </View>
+
+        {showFilters && (
+          <View style={{padding:12,paddingTop:0,gap:10}}>
+            {/* Row: Role + Cuisine */}
+            <View style={{flexDirection:'row',gap:8}}>
+              <View style={{flex:1}}>
+                <Text style={[s.formLabel,{marginBottom:4}]}>Role</Text>
+                <TextInput style={s.filterInput} placeholder="e.g. line_cook"
+                  value={filters.role_code} onChangeText={v=>setFilters(p=>({...p,role_code:v}))}/>
+              </View>
+              <View style={{flex:1}}>
+                <Text style={[s.formLabel,{marginBottom:4}]}>Cuisine</Text>
+                <TextInput style={s.filterInput} placeholder="e.g. indian"
+                  value={filters.cuisine} onChangeText={v=>setFilters(p=>({...p,cuisine:v}))}/>
+              </View>
+            </View>
+
+            {/* Row: Experience range */}
+            <View>
+              <Text style={[s.formLabel,{marginBottom:4}]}>Experience (years)</Text>
+              <View style={{flexDirection:'row',gap:8}}>
+                <TextInput style={[s.filterInput,{flex:1}]} placeholder="Min" keyboardType="numeric"
+                  value={filters.min_exp} onChangeText={v=>setFilters(p=>({...p,min_exp:v}))}/>
+                <Text style={{alignSelf:'center',color:'#999'}}>–</Text>
+                <TextInput style={[s.filterInput,{flex:1}]} placeholder="Max" keyboardType="numeric"
+                  value={filters.max_exp} onChangeText={v=>setFilters(p=>({...p,max_exp:v}))}/>
+              </View>
+            </View>
+
+            {/* Row: Salary range ($/week) */}
+            <View>
+              <Text style={[s.formLabel,{marginBottom:4}]}>Expected Salary ($/week)</Text>
+              <View style={{flexDirection:'row',gap:8}}>
+                <TextInput style={[s.filterInput,{flex:1}]} placeholder="Min" keyboardType="numeric"
+                  value={filters.min_salary} onChangeText={v=>setFilters(p=>({...p,min_salary:v}))}/>
+                <Text style={{alignSelf:'center',color:'#999'}}>–</Text>
+                <TextInput style={[s.filterInput,{flex:1}]} placeholder="Max" keyboardType="numeric"
+                  value={filters.max_salary} onChangeText={v=>setFilters(p=>({...p,max_salary:v}))}/>
+              </View>
+            </View>
+
+            {/* Needs Accommodation */}
+            <View>
+              <Text style={[s.formLabel,{marginBottom:4}]}>Needs Accommodation</Text>
+              <View style={{flexDirection:'row',gap:8}}>
+                {(['any','true','false'] as const).map(v=>(
+                  <TouchableOpacity key={v}
+                    style={{flex:1,paddingVertical:7,borderRadius:8,borderWidth:1,alignItems:'center',
+                      borderColor: filters.needs_accommodation===v ? DARK : '#ccc',
+                      backgroundColor: filters.needs_accommodation===v ? DARK : '#fff'}}
+                    onPress={()=>setFilters(p=>({...p,needs_accommodation:v}))}>
+                    <Text style={{color: filters.needs_accommodation===v?'#fff':'#555',fontSize:12}}>
+                      {v==='any'?'Any':v==='true'?'Yes':'No'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Willing to Relocate */}
+            <View>
+              <Text style={[s.formLabel,{marginBottom:4}]}>Willing to Relocate</Text>
+              <View style={{flexDirection:'row',gap:8}}>
+                {(['any','true'] as const).map(v=>(
+                  <TouchableOpacity key={v}
+                    style={{flex:1,paddingVertical:7,borderRadius:8,borderWidth:1,alignItems:'center',
+                      borderColor: filters.willing_to_relocate===v ? DARK : '#ccc',
+                      backgroundColor: filters.willing_to_relocate===v ? DARK : '#fff'}}
+                    onPress={()=>setFilters(p=>({...p,willing_to_relocate:v}))}>
+                    <Text style={{color: filters.willing_to_relocate===v?'#fff':'#555',fontSize:12}}>
+                      {v==='any'?'Any':'Yes only'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Sort By */}
+            <View>
+              <Text style={[s.formLabel,{marginBottom:4}]}>Sort By</Text>
+              <View style={{flexDirection:'row',flexWrap:'wrap',gap:6}}>
+                {([
+                  {v:'trust_score',label:'Trust Score'},
+                  {v:'years_experience',label:'Experience'},
+                  {v:'salary_min_cents',label:'Salary'},
+                  {v:'profile_completeness',label:'Profile %'},
+                  {v:'updated_at',label:'Recently Updated'},
+                ] as const).map(({v,label})=>(
+                  <TouchableOpacity key={v}
+                    style={{paddingVertical:6,paddingHorizontal:12,borderRadius:20,borderWidth:1,
+                      borderColor: filters.sort_by===v ? DARK : '#ccc',
+                      backgroundColor: filters.sort_by===v ? DARK : '#fff'}}
+                    onPress={()=>setFilters(p=>({...p,sort_by:v}))}>
+                    <Text style={{color: filters.sort_by===v?'#fff':'#555',fontSize:12}}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Sort Direction */}
+            <View style={{flexDirection:'row',gap:8}}>
+              {([{v:'desc',label:'High → Low'},{v:'asc',label:'Low → High'}] as const).map(({v,label})=>(
+                <TouchableOpacity key={v}
+                  style={{flex:1,paddingVertical:7,borderRadius:8,borderWidth:1,alignItems:'center',
+                    borderColor: filters.sort_dir===v ? ORANGE : '#ccc',
+                    backgroundColor: filters.sort_dir===v ? '#FFF3E0' : '#fff'}}
+                  onPress={()=>setFilters(p=>({...p,sort_dir:v}))}>
+                  <Text style={{color: filters.sort_dir===v?ORANGE:'#555',fontSize:12,fontWeight:'600'}}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Reset */}
+            <TouchableOpacity
+              style={{alignSelf:'center',paddingVertical:6,paddingHorizontal:20}}
+              onPress={()=>{
+                const reset = {state:'',role_code:'',cuisine:'',min_exp:'',max_exp:'',
+                  min_salary:'',max_salary:'',needs_accommodation:'any',
+                  willing_to_relocate:'any',work_auth:'',sort_by:'trust_score',sort_dir:'desc'};
+                setFilters(reset); load(reset);
+              }}>
+              <Text style={{color:'#999',fontSize:13}}>Reset all filters</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <ScrollView style={{flex:1}}>
