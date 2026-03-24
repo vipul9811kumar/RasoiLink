@@ -2224,7 +2224,21 @@
       console.warn('⚠️ EmailJS error:', e.message);
     }
 
-    // ——— 3. SHOW SUCCESS ———
+    // ——— 3. SEND WHATSAPP INVITE ———
+    if (phone) {
+      try {
+        await fetch('/.netlify/functions/waitlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, phone, type }),
+        });
+        console.log('✅ WhatsApp invite sent');
+      } catch (e) {
+        console.warn('⚠️ WhatsApp invite failed:', e.message);
+      }
+    }
+
+    // ——— 4. SHOW SUCCESS ———
     document.getElementById('worker-form').style.display = 'none';
     document.getElementById('owner-form').style.display  = 'none';
 

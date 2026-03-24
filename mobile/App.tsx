@@ -66,9 +66,10 @@ api.interceptors.request.use(async (config) => {
 
 // ─── App Root ────────────────────────────────────────────────────────────────
 export default function App() {
-  const [loading, setLoading]   = useState(true);
-  const [user, setUser]         = useState<any>(null);
-  const [language, setLanguage] = useState<string|null>(null);
+  const [loading, setLoading]             = useState(true);
+  const [user, setUser]                   = useState<any>(null);
+  const [language, setLanguage]           = useState<string|null>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -92,14 +93,21 @@ export default function App() {
     setLanguage(code);
   }
 
+  function handleLogin(u: any, is_new: boolean) {
+    setUser(u);
+    setNeedsOnboarding(is_new);
+  }
+
   async function handleLogout() {
     await TokenStore.clear('auth_token');
     setUser(null);
+    setNeedsOnboarding(false);
   }
 
   if (loading) return <View style={s.center}><ActivityIndicator size="large" color={ORANGE}/></View>;
   if (!language) return <LanguageSelector onSelect={handleLanguageSelect}/>;
-  if (!user) return <AuthScreen onLogin={setUser} language={language}/>;
+  if (!user) return <AuthScreen onLogin={handleLogin} language={language}/>;
+  if (needsOnboarding) return <OnboardingScreen user={user} onComplete={() => setNeedsOnboarding(false)}/>;
   if (user.user_type === 'owner') return <OwnerApp user={user} language={language} onLogout={handleLogout} onLanguageChange={handleLanguageSelect}/>;
   return <WorkerApp user={user} language={language} onLogout={handleLogout} onLanguageChange={handleLanguageSelect}/>;
 }
@@ -148,67 +156,85 @@ function LanguageSelector({ onSelect }: { onSelect: (code: string) => void }) {
   );
 }
 
-// ─── Auth Screen ──────────────────────────────────────────────────────────────
-function AuthScreen({ onLogin, language }: { onLogin: (u: any) => void; language: string }) {
-  const [mode, setMode]         = useState<'login'|'register'>('login');
+// ─── Auth Screen — Phone → OTP → JWT ─────────────────────────────────────────
+function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) => void; language: string }) {
+  const [step, setStep]         = useState<'phone'|'otp'>('phone');
   const [phone, setPhone]       = useState('');
-  const [password, setPassword] = useState('');
   const [name, setName]         = useState('');
   const [userType, setUserType] = useState<'worker'|'owner'>('worker');
-  const [error, setError]       = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [otpStep, setOtpStep]   = useState(false);
   const [otp, setOtp]           = useState('');
-  const [otpSent, setOtpSent]   = useState(false);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+  const [devCode, setDevCode]   = useState('');
 
   async function sendOtp() {
+    if (!phone || phone.replace(/[^0-9]/g,'').length < 10) {
+      setError('Enter a valid phone number'); return;
+    }
+    if (!name.trim()) { setError('Enter your name'); return; }
     setLoading(true); setError('');
     try {
-      const res = await api.post('/auth/send-otp', { phone, purpose: 'verify' });
-      setOtpSent(true);
-      setOtpStep(true);
-      if (res.data.data?.dev_code) {
-        setError(`Your OTP code is: ${res.data.data.dev_code}`);
-      } else {
-        setError('');
-      }
+      const res = await api.post('/auth/send-otp', { phone, purpose: 'login' });
+      if (res.data.data?.dev_code) setDevCode(res.data.data.dev_code);
+      setStep('otp');
     } catch(e: any) {
-      setError(e.response?.data?.error ?? 'Failed to send OTP');
+      setError(e.response?.data?.error ?? 'Failed to send code. Try again.');
     } finally { setLoading(false); }
   }
 
-  async function verifyOtpAndRegister() {
+  async function verifyOtp() {
+    if (otp.length !== 6) { setError('Enter the 6-digit code'); return; }
     setLoading(true); setError('');
     try {
-      await api.post('/auth/verify-otp', { phone, code: otp, purpose: 'verify' });
-      const res = await api.post('/auth/register', { phone, password, name, user_type: userType, language_code: language });
+      const res = await api.post('/auth/otp-login', {
+        phone, code: otp, name: name.trim(), user_type: userType, language_code: language,
+      });
       await TokenStore.set('auth_token', res.data.data.token);
-      onLogin(res.data.data.user);
+      onLogin(res.data.data.user, res.data.data.is_new);
     } catch(e: any) {
-      setError(e.response?.data?.error ?? 'Verification failed');
+      setError(e.response?.data?.error ?? 'Invalid code. Try again.');
     } finally { setLoading(false); }
   }
 
-  async function handleSubmit() {
-    setLoading(true); setError('');
-    try {
-      let res;
-      if (mode === 'login') {
-        res = await api.post('/auth/login', { phone, password });
-      } else if (userType === 'owner' && !otpSent) {
-        setLoading(false);
-        return sendOtp();
-      } else if (userType === 'owner' && otpStep) {
-        setLoading(false);
-        return verifyOtpAndRegister();
-      } else {
-        res = await api.post('/auth/register', { phone, password, name, user_type: userType, language_code: language });
-      }
-      await TokenStore.set('auth_token', res.data.data.token);
-      onLogin(res.data.data.user);
-    } catch (e: any) {
-      setError(e.response?.data?.error ?? 'Something went wrong');
-    } finally { setLoading(false); }
+  if (step === 'otp') {
+    return (
+      <ScrollView contentContainerStyle={s.authContainer}>
+        <Text style={s.logo}>📱</Text>
+        <Text style={s.appName}>Check WhatsApp</Text>
+        <Text style={s.tagline}>We sent a 6-digit code to {phone}</Text>
+
+        {devCode ? (
+          <View style={{backgroundColor:'#E8F5E9',borderRadius:8,padding:12,marginBottom:16,width:'100%'}}>
+            <Text style={{color:'#2E7D32',textAlign:'center',fontWeight:'700',fontSize:15}}>
+              Dev code: {devCode}
+            </Text>
+          </View>
+        ) : null}
+
+        <TextInput
+          style={[s.input,{textAlign:'center',fontSize:28,letterSpacing:10,fontWeight:'700'}]}
+          placeholder="000000"
+          value={otp}
+          onChangeText={v => { setOtp(v.replace(/[^0-9]/g,'')); setError(''); }}
+          keyboardType="numeric"
+          maxLength={6}
+          autoFocus
+        />
+
+        {error ? <Text style={s.error}>{error}</Text> : null}
+
+        <TouchableOpacity style={s.btn} onPress={verifyOtp} disabled={loading}>
+          {loading ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Verify & Continue →</Text>}
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={sendOtp} style={{marginTop:16}}>
+          <Text style={{color:ORANGE,fontSize:13,textAlign:'center'}}>Resend code</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => { setStep('phone'); setOtp(''); setError(''); setDevCode(''); }} style={{marginTop:8}}>
+          <Text style={{color:'#999',fontSize:13,textAlign:'center'}}>← Change phone number</Text>
+        </TouchableOpacity>
+      </ScrollView>
+    );
   }
 
   return (
@@ -217,67 +243,224 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any) => void; language
       <Text style={s.appName}>RasoiLink</Text>
       <Text style={s.tagline}>Fair Work. Fair Pay. Real Trust.</Text>
 
-      <View style={s.modeToggle}>
-        {(['login', 'register'] as const).map(m => (
-          <TouchableOpacity key={m} style={[s.modeBtn, mode===m && s.modeBtnActive]} onPress={() => setMode(m)}>
-            <Text style={[s.modeBtnText, mode===m && s.modeBtnTextActive]}>{m === 'login' ? 'Login' : 'Register'}</Text>
+      <TextInput
+        style={s.input}
+        placeholder="Your full name"
+        value={name}
+        onChangeText={v => { setName(v); setError(''); }}
+        autoCapitalize="words"
+      />
+
+      <View style={s.typeToggle}>
+        {(['worker','owner'] as const).map(t => (
+          <TouchableOpacity key={t} style={[s.typeBtn, userType===t && s.typeBtnActive]} onPress={() => setUserType(t)}>
+            <Text style={[s.typeBtnText, userType===t && s.typeBtnTextActive]}>
+              {t==='worker' ? '👨‍🍳 I\'m a Worker' : '🏪 I\'m an Owner'}
+            </Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      {mode === 'register' && (
+      <TextInput
+        style={s.input}
+        placeholder="+1 (555) 000-0000"
+        value={phone}
+        onChangeText={v => { setPhone(v.replace(/[^0-9+]/g,'')); setError(''); }}
+        keyboardType="phone-pad"
+        autoCapitalize="none"
+      />
+      <Text style={{fontSize:11,color:'#999',marginTop:-8,marginBottom:16,alignSelf:'flex-start'}}>
+        We'll send a code to this WhatsApp number
+      </Text>
+
+      {error ? <Text style={s.error}>{error}</Text> : null}
+
+      <TouchableOpacity style={s.btn} onPress={sendOtp} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Send Code on WhatsApp →</Text>}
+      </TouchableOpacity>
+    </ScrollView>
+  );
+}
+
+// ─── Onboarding Screen ───────────────────────────────────────────────────────
+const WORKER_ROLES = [
+  { label: 'Head Chef / Executive Chef', value: 'head_chef' },
+  { label: 'Tandoor Chef',               value: 'tandoor_chef' },
+  { label: 'Biryani Chef',               value: 'biryani_chef' },
+  { label: 'Line Cook',                  value: 'line_cook' },
+  { label: 'Prep Cook',                  value: 'prep_cook' },
+  { label: 'Pastry / Mithai Cook',       value: 'pastry_cook' },
+  { label: 'Kitchen Helper / Dishwasher',value: 'kitchen_helper' },
+  { label: 'Server / Waiter',            value: 'server' },
+  { label: 'Manager / Supervisor',       value: 'manager' },
+];
+
+const US_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
+
+const CUISINE_TYPES = ['North Indian','South Indian','Mughlai','Punjabi','Gujarati','Bengali','Street Food / Chaat','Biryani Specialist','Pan-Indian / Multi-cuisine'];
+
+function OnboardingScreen({ user, onComplete }: { user: any; onComplete: () => void }) {
+  const isWorker = user.user_type === 'worker';
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
+  const [step, setStep]       = useState(0);
+
+  // Worker fields
+  const [role, setRole]           = useState('');
+  const [years, setYears]         = useState('');
+  const [prefStates, setPrefStates] = useState<string[]>([]);
+
+  // Owner fields
+  const [restaurantName, setRestaurantName] = useState('');
+  const [city, setCity]                     = useState('');
+  const [ownerState, setOwnerState]         = useState('');
+  const [cuisine, setCuisine]               = useState('');
+
+  function toggleState(s: string) {
+    setPrefStates(prev =>
+      prev.includes(s) ? prev.filter(x => x !== s) : prev.length < 3 ? [...prev, s] : prev,
+    );
+  }
+
+  async function save() {
+    setLoading(true); setError('');
+    try {
+      if (isWorker) {
+        await api.patch(`/workers/${user.user_id}`, {
+          role_code: role || 'kitchen_helper',
+          years_experience: parseInt(years) || 0,
+          preferred_states: prefStates.length ? prefStates : ['NJ'],
+        });
+      } else {
+        await api.patch(`/owners/${user.user_id}`, {
+          restaurant_name: restaurantName || 'My Restaurant',
+          city: city || 'Edison',
+          state: ownerState || 'NJ',
+          cuisine_types: cuisine ? [cuisine] : [],
+        });
+      }
+      onComplete();
+    } catch(e: any) {
+      setError(e.response?.data?.error ?? 'Failed to save. Please try again.');
+    } finally { setLoading(false); }
+  }
+
+  return (
+    <ScrollView contentContainerStyle={[s.authContainer,{paddingTop:60}]}>
+      <Text style={{fontSize:36,textAlign:'center',marginBottom:8}}>{isWorker ? '👨‍🍳' : '🏪'}</Text>
+      <Text style={s.appName}>{isWorker ? 'Your Worker Profile' : 'Your Restaurant'}</Text>
+      <Text style={s.tagline}>A few quick details to get you started</Text>
+
+      {isWorker ? (
         <>
-          <TextInput style={s.input} placeholder="Full Name" value={name} onChangeText={setName}/>
-          <View style={s.typeToggle}>
-            {(['worker', 'owner'] as const).map(t => (
-              <TouchableOpacity key={t} style={[s.typeBtn, userType===t && s.typeBtnActive]} onPress={() => setUserType(t)}>
-                <Text style={[s.typeBtnText, userType===t && s.typeBtnTextActive]}>{t==='worker'?'👨‍🍳 Worker':'🏪 Owner'}</Text>
+          {/* Role */}
+          <Text style={[s.formLabel,{marginTop:16}]}>Your Role *</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom:12}}>
+            {WORKER_ROLES.map(r => (
+              <TouchableOpacity
+                key={r.value}
+                onPress={() => setRole(r.value)}
+                style={[
+                  {paddingHorizontal:14,paddingVertical:8,borderRadius:20,borderWidth:1.5,
+                   borderColor: role===r.value ? ORANGE : '#ddd',
+                   backgroundColor: role===r.value ? '#FFF3E0' : '#fff',
+                   marginRight:8},
+                ]}
+              >
+                <Text style={{color: role===r.value ? ORANGE : '#666', fontSize:13, fontWeight: role===r.value?'700':'400'}}>
+                  {r.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Years */}
+          <Text style={s.formLabel}>Years of Experience</Text>
+          <TextInput
+            style={s.input}
+            placeholder="e.g. 3"
+            value={years}
+            onChangeText={setYears}
+            keyboardType="numeric"
+          />
+
+          {/* Preferred States */}
+          <Text style={s.formLabel}>Preferred States (pick up to 3)</Text>
+          <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginBottom:16}}>
+            {US_STATES.map(st => (
+              <TouchableOpacity
+                key={st}
+                onPress={() => toggleState(st)}
+                style={{
+                  paddingHorizontal:10,paddingVertical:5,borderRadius:12,borderWidth:1.5,
+                  borderColor: prefStates.includes(st) ? ORANGE : '#ddd',
+                  backgroundColor: prefStates.includes(st) ? '#FFF3E0' : '#fff',
+                }}
+              >
+                <Text style={{fontSize:12,color: prefStates.includes(st)?ORANGE:'#666',fontWeight:prefStates.includes(st)?'700':'400'}}>
+                  {st}
+                </Text>
               </TouchableOpacity>
             ))}
           </View>
         </>
+      ) : (
+        <>
+          <Text style={[s.formLabel,{marginTop:16}]}>Restaurant Name *</Text>
+          <TextInput style={s.input} placeholder="e.g. Spice Route Kitchen" value={restaurantName} onChangeText={setRestaurantName}/>
+
+          <Text style={s.formLabel}>City *</Text>
+          <TextInput style={s.input} placeholder="e.g. Edison" value={city} onChangeText={setCity}/>
+
+          <Text style={s.formLabel}>State *</Text>
+          <View style={{flexDirection:'row',flexWrap:'wrap',gap:6,marginBottom:16}}>
+            {US_STATES.map(st => (
+              <TouchableOpacity
+                key={st}
+                onPress={() => setOwnerState(st)}
+                style={{
+                  paddingHorizontal:10,paddingVertical:5,borderRadius:12,borderWidth:1.5,
+                  borderColor: ownerState===st ? DARK : '#ddd',
+                  backgroundColor: ownerState===st ? DARK : '#fff',
+                }}
+              >
+                <Text style={{fontSize:12,color:ownerState===st?'#fff':'#666',fontWeight:ownerState===st?'700':'400'}}>
+                  {st}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={s.formLabel}>Cuisine Type</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom:16}}>
+            {CUISINE_TYPES.map(c => (
+              <TouchableOpacity
+                key={c}
+                onPress={() => setCuisine(c)}
+                style={{
+                  paddingHorizontal:14,paddingVertical:8,borderRadius:20,borderWidth:1.5,
+                  borderColor: cuisine===c ? DARK : '#ddd',
+                  backgroundColor: cuisine===c ? DARK : '#fff',
+                  marginRight:8,
+                }}
+              >
+                <Text style={{color:cuisine===c?'#fff':'#666',fontSize:13,fontWeight:cuisine===c?'700':'400'}}>
+                  {c}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </>
       )}
 
-      <TextInput style={s.input} placeholder="+1 (555) 000-0000" value={phone} onChangeText={v => setPhone(v.replace(/[^0-9+]/g,""))} keyboardType="phone-pad" autoCapitalize="none"/>
-      <Text style={{fontSize:11,color:"#999",marginTop:-8,marginBottom:8,alignSelf:"flex-start"}}>Format: +1 followed by 10 digits (e.g. +12015550101)</Text>
-      <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry/>
-      {error ? (
-        <View style={{width:'100%',marginBottom:8,padding:10,borderRadius:8,
-          backgroundColor: error.startsWith('Your OTP') ? '#E8F5E9' : '#FFF3F3',
-          borderWidth:1, borderColor: error.startsWith('Your OTP') ? GREEN : '#ffcdd2'}}>
-          <Text style={{color: error.startsWith('Your OTP') ? '#2E7D32' : '#c62828', fontSize:13, textAlign:'center', fontWeight:'600'}}>
-            {error}
-          </Text>
-        </View>
-      ) : null}
-      {mode === 'register' && userType === 'owner' && otpStep && (
-        <View style={{width:'100%', marginBottom:12}}>
-          <Text style={{fontSize:13, color:'#666', marginBottom:8, textAlign:'center'}}>
-            📱 Enter the 6-digit code for {phone}
-          </Text>
-          <TextInput
-            style={[s.input, {textAlign:'center', fontSize:24, letterSpacing:8, fontWeight:'700'}]}
-            placeholder="000000"
-            value={otp}
-            onChangeText={setOtp}
-            keyboardType="numeric"
-            maxLength={6}
-          />
-          <TouchableOpacity onPress={sendOtp}>
-            <Text style={{textAlign:'center', color:ORANGE, fontSize:13, marginTop:4}}>Resend code</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-      <TouchableOpacity style={s.btn} onPress={handleSubmit} disabled={loading}>
-        {loading
-          ? <ActivityIndicator color="#fff"/>
-          : <Text style={s.btnText}>
-              {mode === 'login' ? 'Login' :
-               userType === 'owner' && !otpSent ? '📱 Send OTP to Verify' :
-               userType === 'owner' && otpStep ? '✅ Verify & Register' :
-               'Create Account'}
-            </Text>
-        }
+      {error ? <Text style={s.error}>{error}</Text> : null}
+
+      <TouchableOpacity style={[s.btn,{marginTop:8}]} onPress={save} disabled={loading}>
+        {loading ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Complete Profile →</Text>}
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={onComplete} style={{marginTop:16,marginBottom:32}}>
+        <Text style={{color:'#bbb',fontSize:13,textAlign:'center'}}>Skip for now</Text>
       </TouchableOpacity>
     </ScrollView>
   );

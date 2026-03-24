@@ -1,12 +1,11 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
+import { sendWhatsApp, WHATSAPP_ENABLED } from '../whatsapp.js';
 
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// True when a real SMS provider is wired up
-const SMS_CONFIGURED = !!(process.env.TWILIO_ACCOUNT_SID || process.env.SNS_REGION);
 
 async function ensureOtpTable() {
   await query(`
@@ -48,17 +47,19 @@ export async function otpRoutes(app: FastifyInstance) {
 
     console.log(`\n🔐 OTP for ${phone}: ${code}\n`);
 
-    // Send via SMS if provider is configured
-    if (SMS_CONFIGURED) {
-      // TODO: send via Twilio/SNS
+    // Send via WhatsApp if Twilio is configured
+    if (WHATSAPP_ENABLED) {
+      await sendWhatsApp(
+        phone,
+        `🔐 *Your RasoiLink code is: ${code}*\n\nThis code expires in 10 minutes.\nDo not share it with anyone.\n\n_Reply STOP to unsubscribe_`,
+      );
     }
 
     return reply.send({
       success: true,
       data: {
-        message: SMS_CONFIGURED ? 'OTP sent to your phone' : 'OTP generated',
-        // Show code in-app whenever SMS is not configured
-        ...(!SMS_CONFIGURED ? { dev_code: code } : {}),
+        message: WHATSAPP_ENABLED ? 'OTP sent to your WhatsApp' : 'OTP generated',
+        ...(!WHATSAPP_ENABLED ? { dev_code: code } : {}),
       },
       error: null,
     });
@@ -107,5 +108,84 @@ export async function otpRoutes(app: FastifyInstance) {
     await query(`UPDATE app.users SET is_verified = true WHERE phone = $1`, [phone]);
 
     return reply.send({ success: true, data: { verified: true, phone }, error: null });
+  });
+
+  // POST /auth/otp-login
+  // Verify OTP, auto-register if new user, return JWT + is_new flag.
+  app.post('/auth/otp-login', async (req, reply) => {
+    const { phone, code, name, user_type = 'worker', language_code = 'en' } = req.body as any;
+    if (!phone || !code) {
+      return reply.status(400).send({ success: false, error: 'Phone and code required', data: null });
+    }
+
+    // Find valid OTP (any purpose)
+    const otpRes = await query(`
+      SELECT otp_id, attempt_count, code FROM app.otps
+      WHERE phone = $1 AND used_at IS NULL AND expires_at > now()
+      ORDER BY created_at DESC LIMIT 1
+    `, [phone]);
+
+    if (!otpRes.rows.length) {
+      return reply.status(400).send({ success: false, error: 'OTP expired or not found. Request a new one.', data: null });
+    }
+
+    const otp = otpRes.rows[0];
+
+    if (otp.attempt_count >= 5) {
+      await query(`UPDATE app.otps SET used_at = now() WHERE otp_id = $1`, [otp.otp_id]);
+      return reply.status(400).send({ success: false, error: 'Too many attempts. Request a new code.', data: null });
+    }
+
+    await query(`UPDATE app.otps SET attempt_count = attempt_count + 1 WHERE otp_id = $1`, [otp.otp_id]);
+
+    if (otp.code !== code) {
+      return reply.status(400).send({ success: false, error: 'Invalid code. Try again.', data: null });
+    }
+
+    // Mark OTP used
+    await query(`UPDATE app.otps SET used_at = now() WHERE otp_id = $1`, [otp.otp_id]);
+
+    // Check if user exists
+    let userRow = await query(
+      `SELECT user_id, phone, name, user_type, language_code, trust_score, is_verified FROM app.users WHERE phone = $1`,
+      [phone],
+    );
+
+    let is_new = false;
+
+    if (!userRow.rows.length) {
+      // Auto-register new user
+      const inserted = await query(
+        `INSERT INTO app.users (phone, name, user_type, language_code, is_verified)
+         VALUES ($1, $2, $3, $4, true)
+         RETURNING user_id, phone, name, user_type, language_code, trust_score, is_verified`,
+        [phone, name?.trim() || 'New User', user_type, language_code],
+      );
+      const uid = inserted.rows[0].user_id;
+
+      if (user_type === 'worker') {
+        await query(
+          `INSERT INTO app.worker_profiles (worker_id, role_code, years_experience, current_state, salary_min_cents, salary_max_cents)
+           VALUES ($1, 'kitchen_helper', 0, 'NJ', 140000, 200000)`,
+          [uid],
+        );
+      } else {
+        await query(
+          `INSERT INTO app.owner_profiles (owner_id, restaurant_name, restaurant_address, city, state, zip_code)
+           VALUES ($1, 'My Restaurant', '123 Main St', 'Edison', 'NJ', '08817')`,
+          [uid],
+        );
+      }
+
+      userRow = inserted;
+      is_new = true;
+    } else {
+      await query(`UPDATE app.users SET is_verified = true WHERE phone = $1`, [phone]);
+    }
+
+    const user = userRow.rows[0];
+    const token = app.jwt.sign({ user_id: user.user_id, user_type: user.user_type, phone: user.phone });
+
+    return reply.send({ success: true, data: { token, user, is_new }, error: null });
   });
 }
