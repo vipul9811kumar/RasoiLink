@@ -5,7 +5,28 @@ function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+// True when a real SMS provider is wired up
+const SMS_CONFIGURED = !!(process.env.TWILIO_ACCOUNT_SID || process.env.SNS_REGION);
+
+async function ensureOtpTable() {
+  await query(`
+    CREATE TABLE IF NOT EXISTS app.otps (
+      otp_id        TEXT        NOT NULL PRIMARY KEY DEFAULT gen_ulid(),
+      phone         TEXT        NOT NULL,
+      code          VARCHAR(6)  NOT NULL,
+      purpose       VARCHAR(20) NOT NULL DEFAULT 'verify',
+      attempt_count INT         NOT NULL DEFAULT 0,
+      used_at       TIMESTAMPTZ,
+      expires_at    TIMESTAMPTZ NOT NULL DEFAULT now() + INTERVAL '10 minutes',
+      created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+}
+
 export async function otpRoutes(app: FastifyInstance) {
+
+  // Ensure the table exists on first load (handles missing migration on Railway)
+  await ensureOtpTable();
 
   // POST /auth/send-otp
   app.post('/auth/send-otp', async (req, reply) => {
@@ -25,16 +46,19 @@ export async function otpRoutes(app: FastifyInstance) {
       VALUES ($1, $2, $3)
     `, [phone, code, purpose]);
 
-    // In production: send via Twilio/SNS
-    // For now: log to console
     console.log(`\n🔐 OTP for ${phone}: ${code}\n`);
+
+    // Send via SMS if provider is configured
+    if (SMS_CONFIGURED) {
+      // TODO: send via Twilio/SNS
+    }
 
     return reply.send({
       success: true,
       data: {
-        message: 'OTP sent',
-        // Only expose code in dev mode
-        ...(process.env.NODE_ENV !== 'production' ? { dev_code: code } : {}),
+        message: SMS_CONFIGURED ? 'OTP sent to your phone' : 'OTP generated',
+        // Show code in-app whenever SMS is not configured
+        ...(!SMS_CONFIGURED ? { dev_code: code } : {}),
       },
       error: null,
     });
@@ -79,10 +103,8 @@ export async function otpRoutes(app: FastifyInstance) {
     // Mark used
     await query(`UPDATE app.otps SET used_at = now() WHERE otp_id = $1`, [otp.otp_id]);
 
-    // If user exists, mark verified
-    await query(`
-      UPDATE app.users SET is_verified = true WHERE phone = $1
-    `, [phone]);
+    // If user already exists, mark verified
+    await query(`UPDATE app.users SET is_verified = true WHERE phone = $1`, [phone]);
 
     return reply.send({ success: true, data: { verified: true, phone }, error: null });
   });

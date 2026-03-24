@@ -168,7 +168,9 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any) => void; language
       setOtpSent(true);
       setOtpStep(true);
       if (res.data.data?.dev_code) {
-        setError(`Dev OTP: ${res.data.data.dev_code}`);
+        setError(`Your OTP code is: ${res.data.data.dev_code}`);
+      } else {
+        setError('');
       }
     } catch(e: any) {
       setError(e.response?.data?.error ?? 'Failed to send OTP');
@@ -239,11 +241,19 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any) => void; language
       <TextInput style={s.input} placeholder="+1 (555) 000-0000" value={phone} onChangeText={v => setPhone(v.replace(/[^0-9+]/g,""))} keyboardType="phone-pad" autoCapitalize="none"/>
       <Text style={{fontSize:11,color:"#999",marginTop:-8,marginBottom:8,alignSelf:"flex-start"}}>Format: +1 followed by 10 digits (e.g. +12015550101)</Text>
       <TextInput style={s.input} placeholder="Password" value={password} onChangeText={setPassword} secureTextEntry/>
-      {error ? <Text style={[s.error, error.startsWith('Dev OTP') ? {color:GREEN} : {}]}>{error}</Text> : null}
+      {error ? (
+        <View style={{width:'100%',marginBottom:8,padding:10,borderRadius:8,
+          backgroundColor: error.startsWith('Your OTP') ? '#E8F5E9' : '#FFF3F3',
+          borderWidth:1, borderColor: error.startsWith('Your OTP') ? GREEN : '#ffcdd2'}}>
+          <Text style={{color: error.startsWith('Your OTP') ? '#2E7D32' : '#c62828', fontSize:13, textAlign:'center', fontWeight:'600'}}>
+            {error}
+          </Text>
+        </View>
+      ) : null}
       {mode === 'register' && userType === 'owner' && otpStep && (
         <View style={{width:'100%', marginBottom:12}}>
           <Text style={{fontSize:13, color:'#666', marginBottom:8, textAlign:'center'}}>
-            📱 Enter the 6-digit OTP sent to {phone}
+            📱 Enter the 6-digit code for {phone}
           </Text>
           <TextInput
             style={[s.input, {textAlign:'center', fontSize:24, letterSpacing:8, fontWeight:'700'}]}
@@ -254,7 +264,7 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any) => void; language
             maxLength={6}
           />
           <TouchableOpacity onPress={sendOtp}>
-            <Text style={{textAlign:'center', color:ORANGE, fontSize:13, marginTop:4}}>Resend OTP</Text>
+            <Text style={{textAlign:'center', color:ORANGE, fontSize:13, marginTop:4}}>Resend code</Text>
           </TouchableOpacity>
         </View>
       )}
