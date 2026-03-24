@@ -8,7 +8,7 @@
 import { FastifyInstance } from 'fastify';
 import { sendWhatsApp, WHATSAPP_ENABLED } from '../whatsapp.js';
 
-const APP_LINK = process.env.APP_INVITE_LINK ?? 'https://expo.dev/@vipul9811karuna/rasoilink';
+const APP_LINK = process.env.APP_INVITE_LINK ?? 'https://expo.dev/accounts/vipul9811karuna/projects/rasoilink/builds/fe78628a-6f6a-47bb-9996-4170838afc12';
 
 export async function waitlistRoutes(app: FastifyInstance) {
 
@@ -25,12 +25,16 @@ export async function waitlistRoutes(app: FastifyInstance) {
 
     const message =
       `${emoji} *Welcome to RasoiLink Beta, ${name}!*\n\n` +
-      `You're on our waitlist as a ${role}. We're onboarding in batches and will send your invite soon.\n\n` +
-      `📲 *Get ready — install Expo Go:*\n` +
-      `• iOS: https://apps.apple.com/app/expo-go/id982107779\n` +
-      `• Android: https://play.google.com/store/apps/details?id=host.exp.exponent\n\n` +
-      `Your app link when invited:\n${APP_LINK}\n\n` +
-      `Questions? Reply to this message.\n` +
+      `You're one of our first ${role}s. Here's how to get started:\n\n` +
+      `📲 *Install the app (Android):*\n` +
+      `${APP_LINK}\n\n` +
+      `Open the link on your Android phone and tap *Download*.\n` +
+      `(If asked, allow "Install from unknown sources")\n\n` +
+      `Once installed:\n` +
+      `1️⃣ Enter your phone number\n` +
+      `2️⃣ Enter the OTP code we'll send here on WhatsApp\n` +
+      `3️⃣ Set up your profile and you're live!\n\n` +
+      `Questions? Just reply here.\n` +
       `_Reply STOP to unsubscribe_`;
 
     if (WHATSAPP_ENABLED) {
