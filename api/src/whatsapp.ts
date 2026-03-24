@@ -39,6 +39,6 @@ export async function sendWhatsApp(toPhone: string, message: string): Promise<vo
 
   if (!res.ok) {
     const err = await res.text();
-    console.error(`[WhatsApp] Failed to send to ${toPhone}: ${err}`);
+    throw new Error(`Twilio error ${res.status}: ${err}`);
   }
 }
