@@ -15,6 +15,7 @@ const TOKEN = process.env.TWILIO_AUTH_TOKEN;
 const FROM  = process.env.TWILIO_WHATSAPP_FROM ?? '+14155238886'; // Twilio sandbox default
 
 export const WHATSAPP_ENABLED = !!(SID && TOKEN);
+export const WHATSAPP_FROM    = FROM;
 
 export async function sendWhatsApp(toPhone: string, message: string): Promise<void> {
   if (!WHATSAPP_ENABLED) {

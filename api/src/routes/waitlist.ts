@@ -6,7 +6,7 @@
  */
 
 import { FastifyInstance } from 'fastify';
-import { sendWhatsApp, WHATSAPP_ENABLED } from '../whatsapp.js';
+import { sendWhatsApp, WHATSAPP_ENABLED, WHATSAPP_FROM } from '../whatsapp.js';
 
 const APP_LINK = process.env.APP_INVITE_LINK ?? 'https://expo.dev/@vipul9811karuna/rasoilink';
 
@@ -45,6 +45,6 @@ export async function waitlistRoutes(app: FastifyInstance) {
       console.log(`[Waitlist] Would send WhatsApp to ${phone}:\n${message}`);
     }
 
-    return reply.send({ success: true, data: { queued: true, whatsapp_enabled: WHATSAPP_ENABLED, whatsapp_error }, error: null });
+    return reply.send({ success: true, data: { queued: true, whatsapp_enabled: WHATSAPP_ENABLED, whatsapp_from: WHATSAPP_FROM, whatsapp_error }, error: null });
   });
 }
