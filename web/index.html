@@ -1091,10 +1091,10 @@
     <button class="lang-pill">ગુ</button>
   </div>
   <div class="nav-right">
-    <button class="nav-link" onclick="scrollTo('#how')">How it works</button>
-    <button class="nav-link" onclick="scrollTo('#trust')">Trust</button>
-    <button class="nav-link" onclick="scrollTo('#pricing')">Pricing</button>
-    <button class="nav-cta" onclick="scrollTo('#waitlist')">Join Waitlist</button>
+    <button class="nav-link" onclick="goTo('#how')">How it works</button>
+    <button class="nav-link" onclick="goTo('#trust')">Trust</button>
+    <button class="nav-link" onclick="goTo('#pricing')">Pricing</button>
+    <button class="nav-cta" onclick="goTo('#waitlist')">Join Waitlist</button>
   </div>
 </nav>
 
@@ -1117,8 +1117,8 @@
         RasoiLink is the first AI-powered marketplace built exclusively for the Indian restaurant industry in America — connecting workers and owners through language, trust, and transparency.
       </p>
       <div class="hero-actions">
-        <button class="btn-primary" onclick="setTab('worker'); scrollTo('#waitlist')">👨‍🍳 I'm a Worker →</button>
-        <button class="btn-secondary" onclick="setTab('owner'); scrollTo('#waitlist')">🏪 I'm a Restaurant Owner</button>
+        <button class="btn-primary" onclick="setTab('worker'); goTo('#waitlist')">👨‍🍳 I'm a Worker →</button>
+        <button class="btn-secondary" onclick="setTab('owner'); goTo('#waitlist')">🏪 I'm a Restaurant Owner</button>
       </div>
     </div>
 
@@ -1754,7 +1754,7 @@
   });
 
   // ——— SMOOTH SCROLL ———
-  function scrollTo(id) {
+  function goTo(id) {
     const el = document.querySelector(id);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
