@@ -4,6 +4,7 @@ import {
   ActivityIndicator, Modal, ScrollView, TextInput
 } from 'react-native';
 import { Platform, Linking } from 'react-native';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as SecureStore from 'expo-secure-store';
 import axios from 'axios';
 
@@ -104,12 +105,15 @@ export default function App() {
     setNeedsOnboarding(false);
   }
 
-  if (loading) return <View style={s.center}><ActivityIndicator size="large" color={ORANGE}/></View>;
-  if (!language) return <LanguageSelector onSelect={handleLanguageSelect}/>;
-  if (!user) return <AuthScreen onLogin={handleLogin} language={language}/>;
-  if (needsOnboarding) return <OnboardingScreen user={user} onComplete={() => setNeedsOnboarding(false)}/>;
-  if (user.user_type === 'owner') return <OwnerApp user={user} language={language} onLogout={handleLogout} onLanguageChange={handleLanguageSelect}/>;
-  return <WorkerApp user={user} language={language} onLogout={handleLogout} onLanguageChange={handleLanguageSelect}/>;
+  let content;
+  if (loading) content = <View style={s.center}><ActivityIndicator size="large" color={ORANGE}/></View>;
+  else if (!language) content = <LanguageSelector onSelect={handleLanguageSelect}/>;
+  else if (!user) content = <AuthScreen onLogin={handleLogin} language={language}/>;
+  else if (needsOnboarding) content = <OnboardingScreen user={user} onComplete={() => setNeedsOnboarding(false)}/>;
+  else if (user.user_type === 'owner') content = <OwnerApp user={user} language={language} onLogout={handleLogout} onLanguageChange={handleLanguageSelect}/>;
+  else content = <WorkerApp user={user} language={language} onLogout={handleLogout} onLanguageChange={handleLanguageSelect}/>;
+
+  return <SafeAreaProvider>{content}</SafeAreaProvider>;
 }
 
 // ─── Language Selector ────────────────────────────────────────────────────────
@@ -471,7 +475,7 @@ function WorkerApp({ user, language, onLogout, onLanguageChange }: { user: any; 
   const [tab, setTab] = useState<'jobs'|'offers'|'pay'|'chat'|'profile'>('jobs');
   const [showProfileEditor, setShowProfileEditor] = useState(false);
   return (
-    <View style={s.appContainer}>
+    <SafeAreaView style={s.appContainer} edges={['top']}>
       <View style={s.header}>
         <Text style={s.headerText}>🍳 RasoiLink</Text>
         <View style={{flexDirection:'row', alignItems:'center', gap:12}}>
@@ -487,7 +491,7 @@ function WorkerApp({ user, language, onLogout, onLanguageChange }: { user: any; 
         {tab === 'profile' && <ProfileTab user={user} language={language} onLogout={onLogout} onLanguageChange={onLanguageChange}/>}
       </View>
       <TabBar tabs={[{key:'jobs',icon:'💼',label:'Jobs'},{key:'offers',icon:'📩',label:'Offers'},{key:'pay',icon:'💰',label:'Pay'},{key:'chat',icon:'💬',label:'Chat'},{key:'profile',icon:'👤',label:'Profile'}]} active={tab} onChange={(t:any)=>setTab(t)}/>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -495,7 +499,7 @@ function WorkerApp({ user, language, onLogout, onLanguageChange }: { user: any; 
 function OwnerApp({ user, language, onLogout, onLanguageChange }: { user: any; language: string; onLogout: () => void; onLanguageChange: (c: string) => void }) {
   const [tab, setTab] = useState<'dashboard'|'listings'|'applicants'|'workers'|'agreements'|'pay'|'profile'>('dashboard');
   return (
-    <View style={s.appContainer}>
+    <SafeAreaView style={s.appContainer} edges={['top']}>
       <View style={[s.header, {backgroundColor:DARK}]}>
         <Text style={s.headerText}>🏪 RasoiLink</Text>
         <View style={{flexDirection:'row', alignItems:'center', gap:12}}>
@@ -513,7 +517,7 @@ function OwnerApp({ user, language, onLogout, onLanguageChange }: { user: any; l
         {tab === 'profile'    && <ProfileTab user={user} language={language} onLogout={onLogout} onLanguageChange={onLanguageChange}/>}
       </View>
       <TabBar tabs={[{key:'dashboard',icon:'📊',label:'Dashboard'},{key:'listings',icon:'📋',label:'Jobs'},{key:'workers',icon:'🔍',label:'Workers'},{key:'applicants',icon:'👥',label:'Applicants'},{key:'agreements',icon:'📄',label:'Agreements'},{key:'pay',icon:'💸',label:'Pay'},{key:'profile',icon:'👤',label:'Profile'}]} active={tab} onChange={(t:any)=>setTab(t)} color={DARK}/>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -1453,8 +1457,9 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
 
 // ─── Shared: Tab Bar ──────────────────────────────────────────────────────────
 function TabBar({ tabs, active, onChange, color=ORANGE }: { tabs:{key:string;icon:string;label:string}[]; active:string; onChange:(k:string)=>void; color?:string }) {
+  const insets = useSafeAreaInsets();
   return (
-    <View style={s.tabBar}>
+    <View style={[s.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]}>
       {tabs.map(t=>(
         <TouchableOpacity key={t.key} style={s.tabBtn} onPress={()=>onChange(t.key)}>
           <Text style={[s.tabIcon,active===t.key&&{color}]}>{t.icon}</Text>
@@ -3287,10 +3292,10 @@ const s = StyleSheet.create({
   btnText:            {color:'#fff',fontSize:15,fontWeight:'bold'},
   error:              {color:'red',marginBottom:8,textAlign:'center'},
   appContainer:       {flex:1,backgroundColor:'#F8F9FA'},
-  header:             {backgroundColor:ORANGE,padding:16,paddingTop:50,flexDirection:'row',justifyContent:'space-between',alignItems:'center'},
+  header:             {backgroundColor:ORANGE,padding:16,flexDirection:'row',justifyContent:'space-between',alignItems:'center'},
   headerText:         {color:'#fff',fontSize:20,fontWeight:'bold'},
   welcomeText:        {color:'#fff',fontSize:14},
-  tabBar:             {flexDirection:'row',borderTopWidth:1,borderColor:'#eee',backgroundColor:'#fff',paddingBottom:8},
+  tabBar:             {flexDirection:'row',borderTopWidth:1,borderColor:'#eee',backgroundColor:'#fff'},
   tabBtn:             {flex:1,alignItems:'center',paddingTop:8},
   tabIcon:            {fontSize:22,color:'#bbb'},
   tabLabel:           {fontSize:11,color:'#bbb',marginTop:2},
