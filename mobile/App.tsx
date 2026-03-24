@@ -1018,19 +1018,36 @@ function ChatTab({ user, language }: { user: any; language: string }) {
   const [loading, setLoading]     = useState(false);
   const [historyLoading, setHistoryLoading] = useState(true);
 
-  // Load most recent chat session on mount
+  // Load most recent chat session on mount, then surface job suggestions if profile is built
   useEffect(() => {
-    api.get('/chat/sessions').then(r => {
+    api.get('/chat/sessions').then(async r => {
       const sessions: any[] = r.data.data ?? [];
-      if (sessions.length === 0) { setHistoryLoading(false); return; }
+      if (sessions.length === 0) return;
       const latest = sessions[0];
       setSessionId(latest.session_id);
-      return api.get(`/chat/sessions/${latest.session_id}/messages`).then(mr => {
-        const msgs = (mr.data.data ?? []).map((m: any) => ({ role: m.role, text: m.content_text }));
-        if (msgs.length > 0) setMessages(msgs);
-      });
+      const mr = await api.get(`/chat/sessions/${latest.session_id}/messages`);
+      const msgs = (mr.data.data ?? []).map((m: any) => ({ role: m.role, text: m.content_text }));
+      if (msgs.length > 0) {
+        setMessages(msgs);
+        // Profile already built in a previous session — show job suggestions automatically
+        showJobSuggestions(msgs);
+      }
     }).catch(()=>{}).finally(()=>setHistoryLoading(false));
   }, []);
+
+  async function showJobSuggestions(currentMsgs?: typeof messages) {
+    const jobsRes = await api.get('/listings?limit=5').catch(()=>null);
+    const jobs: any[] = jobsRes?.data?.data ?? [];
+    if (jobs.length === 0) return;
+    // Avoid duplicate job cards (don't add if last message already has jobs)
+    const existing = currentMsgs ?? messages;
+    if (existing.length > 0 && existing[existing.length - 1].jobs) return;
+    setMessages(m => [...m, {
+      role: 'assistant',
+      text: 'Here are the latest open positions that match your profile:',
+      jobs,
+    }]);
+  }
 
   // Auto-scroll to bottom whenever messages change
   useEffect(() => {
@@ -1054,17 +1071,9 @@ function ChatTab({ user, language }: { user: any; language: string }) {
         .trim();
       setMessages(m=>[...m,{role:'assistant',text:displayText}]);
 
-      // Profile was just built — fetch matching jobs and surface them
+      // Profile was just built — show job suggestions immediately
       if (res.data.data.profile_updated) {
-        const jobsRes = await api.get('/listings?limit=5').catch(()=>null);
-        const jobs: any[] = jobsRes?.data?.data ?? [];
-        if (jobs.length > 0) {
-          setMessages(m=>[...m,{
-            role:'assistant',
-            text:`Based on your profile, here are the top open positions for you right now:`,
-            jobs,
-          }]);
-        }
+        await showJobSuggestions();
       }
     } catch {
       setMessages(m=>[...m,{role:'assistant',text:'Sorry, something went wrong. Please try again.'}]);
@@ -1075,8 +1084,17 @@ function ChatTab({ user, language }: { user: any; language: string }) {
 
   return (
     <View style={{flex:1}}>
-      <View style={s.chatLangBadge}>
-        <Text style={s.chatLangText}>{lang?.flag} {lang?.native}</Text>
+      <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:12,paddingVertical:6,borderBottomWidth:1,borderColor:'#eee'}}>
+        <View style={s.chatLangBadge}>
+          <Text style={s.chatLangText}>{lang?.flag} {lang?.native}</Text>
+        </View>
+        <TouchableOpacity
+          style={{backgroundColor:'#E8F5E9',paddingHorizontal:12,paddingVertical:6,borderRadius:20,borderWidth:1,borderColor:GREEN}}
+          onPress={()=>showJobSuggestions()}
+          disabled={loading}
+        >
+          <Text style={{color:GREEN,fontSize:12,fontWeight:'700'}}>🔍 Find Jobs for Me</Text>
+        </TouchableOpacity>
       </View>
       <ScrollView
         ref={scrollRef}
