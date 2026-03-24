@@ -6,7 +6,7 @@
  */
 
 import { FastifyInstance } from 'fastify';
-import { sendWhatsApp, WHATSAPP_ENABLED, WHATSAPP_FROM } from '../whatsapp.js';
+import { sendWhatsApp, WHATSAPP_ENABLED } from '../whatsapp.js';
 
 const APP_LINK = process.env.APP_INVITE_LINK ?? 'https://expo.dev/@vipul9811karuna/rasoilink';
 
@@ -33,19 +33,14 @@ export async function waitlistRoutes(app: FastifyInstance) {
       `Questions? Reply to this message.\n` +
       `_Reply STOP to unsubscribe_`;
 
-    let whatsapp_error: string | null = null;
     if (WHATSAPP_ENABLED) {
-      try {
-        await sendWhatsApp(phone, message);
-      } catch(e: any) {
-        whatsapp_error = e?.message ?? 'unknown error';
-        console.error('[Waitlist WhatsApp] failed:', e);
-      }
+      sendWhatsApp(phone, message).catch(e =>
+        console.error('[Waitlist WhatsApp] failed:', e),
+      );
     } else {
       console.log(`[Waitlist] Would send WhatsApp to ${phone}:\n${message}`);
     }
 
-    const sid_hint = process.env.TWILIO_ACCOUNT_SID?.slice(0, 10) + '...';
-    return reply.send({ success: true, data: { queued: true, whatsapp_enabled: WHATSAPP_ENABLED, whatsapp_from: WHATSAPP_FROM, sid_hint, whatsapp_error }, error: null });
+    return reply.send({ success: true, data: { queued: true }, error: null });
   });
 }
