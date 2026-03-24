@@ -1413,7 +1413,7 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
         <Text style={[s.formLabel,{marginBottom:10}]}>🆘 Support</Text>
         <TouchableOpacity
           style={{flexDirection:'row',alignItems:'center',backgroundColor:'#25D366',borderRadius:12,padding:16,marginBottom:10}}
-          onPress={() => Linking.openURL('https://wa.me/19XXXXXXXXXX?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
+          onPress={() => Linking.openURL('https://wa.me/919199168849?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
         >
           <Text style={{fontSize:20,marginRight:10}}>💬</Text>
           <View>
@@ -1423,12 +1423,12 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
         </TouchableOpacity>
         <TouchableOpacity
           style={{flexDirection:'row',alignItems:'center',backgroundColor:'#F5F5F5',borderRadius:12,padding:16,marginBottom:10}}
-          onPress={() => Linking.openURL('mailto:support@rasoilink.com?subject=RasoiLink%20Support')}
+          onPress={() => Linking.openURL('mailto:rasoilink@gmail.com?subject=RasoiLink%20Support')}
         >
           <Text style={{fontSize:20,marginRight:10}}>✉️</Text>
           <View>
             <Text style={{color:DARK,fontWeight:'700',fontSize:15}}>Email Support</Text>
-            <Text style={{color:'#666',fontSize:12}}>support@rasoilink.com</Text>
+            <Text style={{color:'#666',fontSize:12}}>rasoilink@gmail.com</Text>
           </View>
         </TouchableOpacity>
       </View>
