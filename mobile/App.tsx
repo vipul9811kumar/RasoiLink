@@ -1408,6 +1408,31 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
           </View>
         </View>
       )}
+      {/* Support */}
+      <View style={{width:'100%',marginTop:8,marginBottom:4}}>
+        <Text style={[s.formLabel,{marginBottom:10}]}>🆘 Support</Text>
+        <TouchableOpacity
+          style={{flexDirection:'row',alignItems:'center',backgroundColor:'#25D366',borderRadius:12,padding:16,marginBottom:10}}
+          onPress={() => Linking.openURL('https://wa.me/19XXXXXXXXXX?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
+        >
+          <Text style={{fontSize:20,marginRight:10}}>💬</Text>
+          <View>
+            <Text style={{color:'#fff',fontWeight:'700',fontSize:15}}>WhatsApp Support</Text>
+            <Text style={{color:'rgba(255,255,255,0.8)',fontSize:12}}>Chat with us directly</Text>
+          </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{flexDirection:'row',alignItems:'center',backgroundColor:'#F5F5F5',borderRadius:12,padding:16,marginBottom:10}}
+          onPress={() => Linking.openURL('mailto:support@rasoilink.com?subject=RasoiLink%20Support')}
+        >
+          <Text style={{fontSize:20,marginRight:10}}>✉️</Text>
+          <View>
+            <Text style={{color:DARK,fontWeight:'700',fontSize:15}}>Email Support</Text>
+            <Text style={{color:'#666',fontSize:12}}>support@rasoilink.com</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+
       <TouchableOpacity style={s.logoutBtn} onPress={onLogout}>
         <Text style={{color:'#fff',fontSize:16,fontWeight:'bold'}}>Logout</Text>
       </TouchableOpacity>
