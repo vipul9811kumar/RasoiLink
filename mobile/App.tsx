@@ -838,9 +838,9 @@ function OwnerApplicants({ user }: { user: any }) {
 // ─── Worker: Jobs Tab ─────────────────────────────────────────────────────────
 
 // ─── Upgrade Modal ───────────────────────────────────────────────────────────
-function UpgradeModal({ visible, onClose, userType, message }: { visible: boolean; onClose: ()=>void; userType: string; message?: string }) {
+function UpgradeModal({ visible, onClose, userType, message, currentPlan }: { visible: boolean; onClose: ()=>void; userType: string; message?: string; currentPlan?: string }) {
   const [loading, setLoading] = useState<string|null>(null);
-  const plans = userType === 'owner' ? [
+  const allPlans = userType === 'owner' ? [
     { id:'starter', name:'Starter', price:'$39/mo', price_id: PRICE_IDS.owner_starter,
       features:['5 active job posts','View worker contacts','AI match engine'], highlight:false },
     { id:'growth', name:'Growth', price:'$99/mo', price_id: PRICE_IDS.owner_growth,
@@ -849,6 +849,8 @@ function UpgradeModal({ visible, onClose, userType, message }: { visible: boolea
     { id:'worker_boost', name:'Boost', price:'$7/mo', price_id: PRICE_IDS.worker_boost,
       features:['Priority in search','Verified badge','WhatsApp job alerts'], highlight:true },
   ];
+  // Filter out plans the user already has (e.g. Starter owner only sees Growth)
+  const plans = currentPlan ? allPlans.filter(p => p.id !== currentPlan) : allPlans;
 
   async function handleUpgrade(plan: any) {
     setLoading(plan.id);
@@ -1209,14 +1211,18 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
               {plan.plan_id==='free'?'🆓 Free':plan.plan_id==='starter'?'⭐ Starter':plan.plan_id==='growth'?'🚀 Growth':plan.plan_id==='worker_boost'?'🔥 Boosted':plan.plan_id}
             </Text>
           </View>
-          {plan.plan_id==='free'
-            ? <TouchableOpacity style={{backgroundColor:ORANGE,paddingHorizontal:16,paddingVertical:8,borderRadius:8}} onPress={() => setShowUpgrade(true)}>
-                <Text style={{color:'#fff',fontSize:13,fontWeight:'600'}}>Upgrade</Text>
+          <View style={{flexDirection:'row',gap:8}}>
+            {(plan.plan_id==='free' || plan.plan_id==='starter') && (
+              <TouchableOpacity style={{backgroundColor:ORANGE,paddingHorizontal:16,paddingVertical:8,borderRadius:8}} onPress={() => setShowUpgrade(true)}>
+                <Text style={{color:'#fff',fontSize:13,fontWeight:'600'}}>{plan.plan_id==='starter'?'→ Growth':'Upgrade'}</Text>
               </TouchableOpacity>
-            : <TouchableOpacity style={{backgroundColor:DARK,paddingHorizontal:16,paddingVertical:8,borderRadius:8}} onPress={openPortal}>
+            )}
+            {plan.plan_id !== 'free' && (
+              <TouchableOpacity style={{backgroundColor:DARK,paddingHorizontal:16,paddingVertical:8,borderRadius:8}} onPress={openPortal}>
                 <Text style={{color:'#fff',fontSize:13,fontWeight:'600'}}>Manage</Text>
               </TouchableOpacity>
-          }
+            )}
+          </View>
         </View>
       )}
       <TouchableOpacity style={s.logoutBtn} onPress={onLogout}>
@@ -1226,6 +1232,7 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
         visible={showUpgrade}
         onClose={() => setShowUpgrade(false)}
         userType={user.user_type}
+        currentPlan={plan?.plan_id}
       />
       {!isOwner && (
         <Modal visible={showEditor} animationType="slide" onRequestClose={() => setShowEditor(false)}>
