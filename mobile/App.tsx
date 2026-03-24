@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   ActivityIndicator, Modal, ScrollView, TextInput
@@ -855,8 +855,8 @@ function UpgradeModal({ visible, onClose, userType, message }: { visible: boolea
     try {
       const res = await billing.checkout(
         plan.price_id, 'subscription',
-        'https://turbo-memory-x5jr77jv5j4j3rw4-3000.app.github.dev/health',
-        'https://turbo-memory-x5jr77jv5j4j3rw4-3000.app.github.dev/health',
+        'https://rasoilink-production.up.railway.app/health',
+        'https://rasoilink-production.up.railway.app/health',
       );
       const url = res.data?.data?.url;
       if (url) { await Linking.openURL(url); onClose(); }
@@ -1008,42 +1008,120 @@ function JobsTab({ user }: { user: any }) {
 // ─── Worker: Chat Tab ─────────────────────────────────────────────────────────
 function ChatTab({ user, language }: { user: any; language: string }) {
   const lang = LANGUAGES.find(l=>l.code===language);
-  const [messages, setMessages] = useState([
-    { role:'assistant', text:`Namaste ${user.name.split(' ')[0]}! 🙏 I'm here to help you find the perfect job. What kind of position are you looking for?` }
+  const scrollRef = useRef<ScrollView>(null);
+  const GREETING = `Namaste ${user.name.split(' ')[0]}! 🙏 I'm here to help you find the perfect job. What kind of position are you looking for?`;
+  const [messages, setMessages] = useState<{role:string;text:string;jobs?:any[]}[]>([
+    { role:'assistant', text: GREETING }
   ]);
   const [input, setInput]         = useState('');
   const [sessionId, setSessionId] = useState<string|undefined>();
   const [loading, setLoading]     = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(true);
+
+  // Load most recent chat session on mount
+  useEffect(() => {
+    api.get('/chat/sessions').then(r => {
+      const sessions: any[] = r.data.data ?? [];
+      if (sessions.length === 0) { setHistoryLoading(false); return; }
+      const latest = sessions[0];
+      setSessionId(latest.session_id);
+      return api.get(`/chat/sessions/${latest.session_id}/messages`).then(mr => {
+        const msgs = (mr.data.data ?? []).map((m: any) => ({ role: m.role, text: m.content_text }));
+        if (msgs.length > 0) setMessages(msgs);
+      });
+    }).catch(()=>{}).finally(()=>setHistoryLoading(false));
+  }, []);
+
+  // Auto-scroll to bottom whenever messages change
+  useEffect(() => {
+    if (!historyLoading) {
+      setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [messages, loading, historyLoading]);
 
   async function send() {
-    if (!input.trim()||loading) return;
+    if (!input.trim() || loading) return;
     const msg = input.trim(); setInput('');
     setMessages(m=>[...m,{role:'user',text:msg}]);
     setLoading(true);
     try {
       const res = await api.post('/chat/message', { message: msg, session_id: sessionId, language_code: language });
       setSessionId(res.data.data.session_id);
-      setMessages(m=>[...m,{role:'assistant',text:res.data.data.message}]);
+
+      // Strip the raw PROFILE_UPDATE block from the displayed message
+      const displayText = res.data.data.message
+        .replace(/<PROFILE_UPDATE>[\s\S]*?<\/PROFILE_UPDATE>/g, '')
+        .trim();
+      setMessages(m=>[...m,{role:'assistant',text:displayText}]);
+
+      // Profile was just built — fetch matching jobs and surface them
+      if (res.data.data.profile_updated) {
+        const jobsRes = await api.get('/listings?limit=5').catch(()=>null);
+        const jobs: any[] = jobsRes?.data?.data ?? [];
+        if (jobs.length > 0) {
+          setMessages(m=>[...m,{
+            role:'assistant',
+            text:`Based on your profile, here are the top open positions for you right now:`,
+            jobs,
+          }]);
+        }
+      }
     } catch {
-      setMessages(m=>[...m,{role:'assistant',text:'Sorry, something went wrong.'}]);
+      setMessages(m=>[...m,{role:'assistant',text:'Sorry, something went wrong. Please try again.'}]);
     } finally { setLoading(false); }
   }
+
+  if (historyLoading) return <View style={s.center}><ActivityIndicator color={ORANGE}/></View>;
 
   return (
     <View style={{flex:1}}>
       <View style={s.chatLangBadge}>
         <Text style={s.chatLangText}>{lang?.flag} {lang?.native}</Text>
       </View>
-      <ScrollView style={s.chatScroll} contentContainerStyle={{padding:12}}>
+      <ScrollView
+        ref={scrollRef}
+        style={s.chatScroll}
+        contentContainerStyle={{padding:12}}
+        onContentSizeChange={()=>scrollRef.current?.scrollToEnd({animated:false})}
+      >
         {messages.map((m,i)=>(
-          <View key={i} style={[s.bubble,m.role==='user'?s.userBubble:s.aiBubble]}>
-            <Text style={m.role==='user'?s.userText:s.aiText}>{m.text}</Text>
+          <View key={i}>
+            <View style={[s.bubble,m.role==='user'?s.userBubble:s.aiBubble]}>
+              <Text style={m.role==='user'?s.userText:s.aiText}>{m.text}</Text>
+            </View>
+            {/* Job suggestion cards shown inline after profile build */}
+            {m.jobs && m.jobs.length > 0 && (
+              <View style={{marginTop:6,marginBottom:4}}>
+                {m.jobs.map((job:any,ji:number)=>(
+                  <View key={ji} style={{backgroundColor:'#fff',borderRadius:12,padding:12,marginBottom:8,borderWidth:1,borderColor:'#E8F5E9',elevation:1}}>
+                    <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'flex-start'}}>
+                      <Text style={{fontWeight:'700',color:DARK,fontSize:14,flex:1}}>{job.title}</Text>
+                      {job.is_boosted && <Text style={{fontSize:11,color:ORANGE,fontWeight:'700'}}>🚀 Featured</Text>}
+                    </View>
+                    <Text style={{color:'#666',fontSize:12,marginTop:2}}>📍 {job.city}, {job.state}</Text>
+                    <Text style={{color:GREEN,fontSize:13,fontWeight:'600',marginTop:4}}>
+                      ${Math.round(job.pay_min_cents/100)}–${Math.round(job.pay_max_cents/100)}/week
+                    </Text>
+                  </View>
+                ))}
+                <Text style={{fontSize:11,color:'#999',marginBottom:4,textAlign:'center'}}>
+                  Go to the Jobs tab to apply →
+                </Text>
+              </View>
+            )}
           </View>
         ))}
         {loading && <Text style={s.typing}>Typing...</Text>}
       </ScrollView>
       <View style={s.chatInputRow}>
-        <TextInput style={s.chatTextInput} placeholder="Type a message..." value={input} onChangeText={setInput} onSubmitEditing={send} returnKeyType="send"/>
+        <TextInput
+          style={s.chatTextInput}
+          placeholder="Type a message..."
+          value={input}
+          onChangeText={setInput}
+          onSubmitEditing={send}
+          returnKeyType="send"
+        />
         <TouchableOpacity style={s.sendBtn} onPress={send}>
           <Text style={{color:'#fff',fontWeight:'bold'}}>Send</Text>
         </TouchableOpacity>
@@ -1174,16 +1252,21 @@ function OffersTab({ user }: { user: any }) {
   async function respond(offer_id: string, status: string) {
     setResponding(offer_id);
     try {
-      if (status === 'accepted') {
-        await api.post(`/offers/${offer_id}/agreement`, {});
-        const agRes = await api.get(`/offers/${offer_id}/agreement`);
-        setAgreement(agRes.data.data);
-      } else {
-        await api.patch(`/offers/${offer_id}`, { status });
-      }
+      // Just mark the offer accepted — the owner creates the agreement with terms
+      await api.patch(`/offers/${offer_id}`, { status });
       load();
     } catch(e: any) {
       alert(e.response?.data?.error ?? 'Failed to respond');
+    } finally { setResponding(null); }
+  }
+
+  async function openAgreement(offer_id: string) {
+    setResponding(offer_id);
+    try {
+      const agRes = await api.get(`/offers/${offer_id}/agreement`);
+      setAgreement(agRes.data.data);
+    } catch(e: any) {
+      alert('Agreement not ready yet — the owner is still preparing the contract.');
     } finally { setResponding(null); }
   }
 
@@ -1292,8 +1375,20 @@ function OffersTab({ user }: { user: any }) {
               </View>
             )}
             {isAccepted && (
-              <View style={s.acceptedBanner}>
-                <Text style={s.acceptedBannerText}>🎉 You accepted this offer! The owner will contact you soon.</Text>
+              <View>
+                <View style={s.acceptedBanner}>
+                  <Text style={s.acceptedBannerText}>🎉 Offer accepted! The owner is preparing your contract.</Text>
+                </View>
+                <TouchableOpacity
+                  style={[s.btn,{marginTop:8,backgroundColor:DARK,paddingVertical:10}]}
+                  onPress={() => openAgreement(offer.offer_id)}
+                  disabled={responding === offer.offer_id}
+                >
+                  {responding === offer.offer_id
+                    ? <ActivityIndicator color="#fff"/>
+                    : <Text style={s.btnText}>📄 View & Sign Agreement</Text>
+                  }
+                </TouchableOpacity>
               </View>
             )}
             {isRejected && (
