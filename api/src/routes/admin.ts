@@ -152,8 +152,8 @@ export async function adminRoutes(app: FastifyInstance) {
                 END as location
          FROM app.users u
          LEFT JOIN app.subscriptions s ON s.user_id = u.user_id AND s.status = 'active'
-         LEFT JOIN app.worker_profiles wp ON wp.user_id = u.user_id
-         LEFT JOIN app.owner_profiles op ON op.user_id = u.user_id
+         LEFT JOIN app.worker_profiles wp ON wp.worker_id = u.user_id
+         LEFT JOIN app.owner_profiles op ON op.owner_id = u.user_id
          ${whereShifted}
          ORDER BY u.created_at DESC
          LIMIT $1 OFFSET $2`,
