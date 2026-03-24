@@ -598,6 +598,16 @@ function OwnerListings({ user }: { user: any }) {
 function OwnerApplicants({ user }: { user: any }) {
   const [applications, setApplications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [agreement, setAgreement] = useState<any>(null);
+  const [offerToSetup, setOfferToSetup] = useState<any>(null);
+  const [setupForm, setSetupForm] = useState({
+    start_date: '', pay: '', hours: '',
+    pay_frequency: 'weekly', pay_day: 'friday',
+    notice_period_weeks: '2',
+    accommodation_provided: false, accommodation_address: '',
+    accommodation_cost: '0', end_date: '',
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   function load() {
     setLoading(true);
@@ -605,17 +615,51 @@ function OwnerApplicants({ user }: { user: any }) {
   }
   useEffect(()=>{load();},[]);
 
-  const [agreement, setAgreement] = useState<any>(null);
+  // Open the employment terms form pre-filled from the applicant's offer
+  function openSetup(app: any) {
+    const defaultStart = new Date();
+    defaultStart.setDate(defaultStart.getDate() + 7);
+    setSetupForm({
+      start_date: defaultStart.toISOString().split('T')[0],
+      pay: String(Math.round((app.offered_pay_cents ?? app.salary_min_cents ?? 0) / 100)),
+      hours: String(app.offered_hours_pw ?? app.hours_per_week ?? 40),
+      pay_frequency: 'weekly',
+      pay_day: 'friday',
+      notice_period_weeks: '2',
+      accommodation_provided: false,
+      accommodation_address: '',
+      accommodation_cost: '0',
+      end_date: '',
+    });
+    setOfferToSetup(app);
+  }
 
-  async function updateStatus(offer_id: string, status: string) {
-    if (status === 'accepted') {
-      // Create agreement first
-      const res = await api.post(`/offers/${offer_id}/agreement`, {});
-      const agRes = await api.get(`/offers/${offer_id}/agreement`);
+  async function createAgreement() {
+    if (!offerToSetup) return;
+    setSubmitting(true);
+    try {
+      await api.post(`/offers/${offerToSetup.offer_id}/agreement`, {
+        start_date:              setupForm.start_date || undefined,
+        agreed_pay_cents:        Math.round(parseFloat(setupForm.pay) * 100),
+        agreed_hours_pw:         parseInt(setupForm.hours),
+        pay_frequency:           setupForm.pay_frequency,
+        pay_day:                 setupForm.pay_day,
+        notice_period_weeks:     parseInt(setupForm.notice_period_weeks),
+        accommodation_provided:  setupForm.accommodation_provided,
+        accommodation_address:   setupForm.accommodation_provided ? setupForm.accommodation_address : undefined,
+        accommodation_cost_cents: setupForm.accommodation_provided ? Math.round(parseFloat(setupForm.accommodation_cost) * 100) : 0,
+        end_date:                setupForm.end_date || undefined,
+      });
+      const agRes = await api.get(`/offers/${offerToSetup.offer_id}/agreement`);
+      setOfferToSetup(null);
       setAgreement(agRes.data.data);
-    } else {
-      await api.patch(`/offers/${offer_id}`, { status });
-    }
+      load();
+    } catch(e: any) { alert(e.response?.data?.error ?? 'Failed to create agreement'); }
+    finally { setSubmitting(false); }
+  }
+
+  async function rejectOffer(offer_id: string) {
+    await api.patch(`/offers/${offer_id}`, { status: 'rejected' });
     load();
   }
 
@@ -633,6 +677,122 @@ function OwnerApplicants({ user }: { user: any }) {
     />
   );
 
+  // Employment terms setup form
+  if (offerToSetup) return (
+    <ScrollView style={{flex:1}} contentContainerStyle={{padding:16}}>
+      <Text style={s.sectionTitle}>Setup Employment Terms</Text>
+      <Text style={[s.cardSub,{marginBottom:16}]}>
+        For {offerToSetup.worker_name} — {offerToSetup.listing_title}
+      </Text>
+
+      {/* Start Date */}
+      <View style={{marginBottom:12}}>
+        <Text style={s.formLabel}>Start Date (YYYY-MM-DD)</Text>
+        <TextInput style={s.input} value={setupForm.start_date}
+          onChangeText={v=>setSetupForm(p=>({...p,start_date:v}))}
+          placeholder="e.g. 2026-04-07" keyboardType="numeric"/>
+      </View>
+
+      {/* Final Salary */}
+      <View style={{marginBottom:12}}>
+        <Text style={s.formLabel}>Final Agreed Salary ($/week)</Text>
+        <TextInput style={s.input} value={setupForm.pay}
+          onChangeText={v=>setSetupForm(p=>({...p,pay:v}))}
+          placeholder="e.g. 650" keyboardType="numeric"/>
+      </View>
+
+      {/* Hours */}
+      <View style={{marginBottom:12}}>
+        <Text style={s.formLabel}>Hours per Week</Text>
+        <TextInput style={s.input} value={setupForm.hours}
+          onChangeText={v=>setSetupForm(p=>({...p,hours:v}))}
+          placeholder="40" keyboardType="numeric"/>
+      </View>
+
+      {/* Pay Frequency */}
+      <View style={{marginBottom:12}}>
+        <Text style={s.formLabel}>Pay Frequency</Text>
+        <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>
+          {(['weekly','biweekly','semimonthly','monthly'] as const).map(f=>(
+            <TouchableOpacity key={f}
+              style={{paddingVertical:6,paddingHorizontal:12,borderRadius:20,borderWidth:1,
+                borderColor: setupForm.pay_frequency===f ? DARK : '#ccc',
+                backgroundColor: setupForm.pay_frequency===f ? DARK : '#fff'}}
+              onPress={()=>setSetupForm(p=>({...p,pay_frequency:f}))}>
+              <Text style={{color: setupForm.pay_frequency===f ? '#fff':'#333',fontSize:12}}>{f}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Pay Day */}
+      <View style={{marginBottom:12}}>
+        <Text style={s.formLabel}>Pay Day</Text>
+        <View style={{flexDirection:'row',flexWrap:'wrap',gap:8}}>
+          {(['monday','tuesday','wednesday','thursday','friday'] as const).map(d=>(
+            <TouchableOpacity key={d}
+              style={{paddingVertical:6,paddingHorizontal:10,borderRadius:20,borderWidth:1,
+                borderColor: setupForm.pay_day===d ? DARK : '#ccc',
+                backgroundColor: setupForm.pay_day===d ? DARK : '#fff'}}
+              onPress={()=>setSetupForm(p=>({...p,pay_day:d}))}>
+              <Text style={{color: setupForm.pay_day===d ? '#fff':'#333',fontSize:12,textTransform:'capitalize'}}>{d}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Notice Period */}
+      <View style={{marginBottom:12}}>
+        <Text style={s.formLabel}>Notice Period (weeks)</Text>
+        <TextInput style={s.input} value={setupForm.notice_period_weeks}
+          onChangeText={v=>setSetupForm(p=>({...p,notice_period_weeks:v}))}
+          placeholder="2" keyboardType="numeric"/>
+      </View>
+
+      {/* Contract End Date (optional) */}
+      <View style={{marginBottom:12}}>
+        <Text style={s.formLabel}>Contract End Date (optional, YYYY-MM-DD)</Text>
+        <TextInput style={s.input} value={setupForm.end_date}
+          onChangeText={v=>setSetupForm(p=>({...p,end_date:v}))}
+          placeholder="Leave blank for open-ended"/>
+      </View>
+
+      {/* Accommodation Toggle */}
+      <View style={{marginBottom:12,flexDirection:'row',alignItems:'center',justifyContent:'space-between'}}>
+        <Text style={s.formLabel}>Accommodation Provided?</Text>
+        <TouchableOpacity
+          style={{paddingVertical:6,paddingHorizontal:16,borderRadius:20,
+            backgroundColor: setupForm.accommodation_provided ? GREEN : '#ccc'}}
+          onPress={()=>setSetupForm(p=>({...p,accommodation_provided:!p.accommodation_provided}))}>
+          <Text style={{color:'#fff',fontWeight:'700'}}>{setupForm.accommodation_provided ? 'Yes' : 'No'}</Text>
+        </TouchableOpacity>
+      </View>
+      {setupForm.accommodation_provided && (<>
+        <View style={{marginBottom:12}}>
+          <Text style={s.formLabel}>Accommodation Address</Text>
+          <TextInput style={s.input} value={setupForm.accommodation_address}
+            onChangeText={v=>setSetupForm(p=>({...p,accommodation_address:v}))}
+            placeholder="Full address"/>
+        </View>
+        <View style={{marginBottom:12}}>
+          <Text style={s.formLabel}>Accommodation Cost Deducted ($/week)</Text>
+          <TextInput style={s.input} value={setupForm.accommodation_cost}
+            onChangeText={v=>setSetupForm(p=>({...p,accommodation_cost:v}))}
+            placeholder="0" keyboardType="numeric"/>
+        </View>
+      </>)}
+
+      <View style={{flexDirection:'row',gap:8,marginTop:8}}>
+        <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:'#ccc'}]} onPress={()=>setOfferToSetup(null)}>
+          <Text style={[s.btnText,{color:'#333'}]}>Cancel</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:DARK}]} onPress={createAgreement} disabled={submitting}>
+          {submitting ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Create Agreement</Text>}
+        </TouchableOpacity>
+      </View>
+    </ScrollView>
+  );
+
   return (
     <ScrollView style={{flex:1}}>
       <Text style={s.sectionTitle}>Applicants</Text>
@@ -646,10 +806,10 @@ function OwnerApplicants({ user }: { user: any }) {
           <Text style={s.cardSub}>💰 ${Math.round(app.salary_min_cents/100)}–${Math.round(app.salary_max_cents/100)}/week</Text>
           {app.status==='pending'?(
             <View style={{flexDirection:'row',gap:8,marginTop:10}}>
-              <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:GREEN,paddingVertical:8}]} onPress={()=>updateStatus(app.offer_id,'accepted')}>
+              <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:GREEN,paddingVertical:8}]} onPress={()=>openSetup(app)}>
                 <Text style={s.btnText}>✓ Accept</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:'#f44336',paddingVertical:8}]} onPress={()=>updateStatus(app.offer_id,'rejected')}>
+              <TouchableOpacity style={[s.btn,{flex:1,backgroundColor:'#f44336',paddingVertical:8}]} onPress={()=>rejectOffer(app.offer_id)}>
                 <Text style={s.btnText}>✗ Reject</Text>
               </TouchableOpacity>
             </View>

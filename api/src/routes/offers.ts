@@ -159,13 +159,15 @@ export async function offerRoutes(app: FastifyInstance) {
 
 
   // POST /offers/:id/agreement — create agreement when owner accepts
+  // Body fields are all optional; defaults come from the offer/listing.
   app.post<{ Params: { id: string } }>('/offers/:id/agreement', {
     preHandler: [app.authenticate],
   }, async (req, reply) => {
     const offer_id = req.params.id;
     const offerRes = await query(`
       SELECT o.*, l.role_code, l.pay_frequency, l.hours_per_week,
-             l.accommodation_provided, l.accommodation_address, l.notice_period_weeks
+             l.accommodation_provided, l.accommodation_address,
+             l.accommodation_cost_cents, l.notice_period_weeks
       FROM app.offers o
       JOIN app.listings l ON o.listing_id = l.listing_id
       WHERE o.offer_id = $1
@@ -174,20 +176,49 @@ export async function offerRoutes(app: FastifyInstance) {
     const offer = offerRes.rows[0];
     const existing = await query(`SELECT agreement_id FROM app.agreements WHERE offer_id = $1`, [offer_id]);
     if (existing.rows.length > 0) return reply.send({ success: true, data: existing.rows[0], error: null });
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() + 7);
+
+    // Owner can override defaults by passing body fields
+    const b = req.body as {
+      start_date?: string;
+      agreed_pay_cents?: number;
+      agreed_hours_pw?: number;
+      pay_frequency?: string;
+      pay_day?: string;
+      notice_period_weeks?: number;
+      accommodation_provided?: boolean;
+      accommodation_address?: string;
+      accommodation_cost_cents?: number;
+      end_date?: string;
+    };
+
+    const defaultStart = new Date();
+    defaultStart.setDate(defaultStart.getDate() + 7);
+
+    const startDate         = b.start_date           ?? defaultStart.toISOString().split('T')[0];
+    const agreedPay         = b.agreed_pay_cents      ?? offer.offered_pay_cents;
+    const agreedHours       = b.agreed_hours_pw       ?? offer.offered_hours_pw;
+    const payFrequency      = b.pay_frequency         ?? offer.pay_frequency ?? 'weekly';
+    const payDay            = b.pay_day               ?? 'friday';
+    const noticePeriod      = b.notice_period_weeks   ?? offer.notice_period_weeks ?? 2;
+    const accomProvided     = b.accommodation_provided ?? offer.accommodation_provided ?? false;
+    const accomAddress      = accomProvided
+      ? (b.accommodation_address ?? offer.accommodation_address ?? 'To be confirmed')
+      : null;
+    const accomCost         = b.accommodation_cost_cents ?? offer.accommodation_cost_cents ?? 0;
+    const endDate           = b.end_date ?? null;
+
     const result = await query(`
       INSERT INTO app.agreements (
         offer_id, worker_id, owner_id, role_code_snapshot,
-        agreed_pay_cents, agreed_hours_pw, pay_frequency,
-        start_date, notice_period_weeks, accommodation_provided, accommodation_address
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *
+        agreed_pay_cents, agreed_hours_pw, pay_frequency, pay_day,
+        start_date, end_date, notice_period_weeks,
+        accommodation_provided, accommodation_address, accommodation_cost_cents
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *
     `, [
       offer_id, offer.worker_id, offer.owner_id, offer.role_code,
-      offer.offered_pay_cents, offer.offered_hours_pw, offer.pay_frequency ?? 'weekly',
-      startDate.toISOString().split('T')[0], offer.notice_period_weeks ?? 2,
-      offer.accommodation_provided ?? false,
-      offer.accommodation_provided ? (offer.accommodation_address ?? 'To be confirmed') : null,
+      agreedPay, agreedHours, payFrequency, payDay,
+      startDate, endDate, noticePeriod,
+      accomProvided, accomAddress, accomCost,
     ]);
     await query(`UPDATE app.offers SET status='accepted', responded_at=now() WHERE offer_id=$1`, [offer_id]);
     return reply.status(201).send({ success: true, data: result.rows[0], error: null });
