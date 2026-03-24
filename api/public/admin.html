@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RasoiLink Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0F1117;
+      --card:      #1A1D27;
+      --card2:     #20233A;
+      --border:    #2A2D3E;
+      --accent:    #FF6B2B;
+      --accent2:   #F5A623;
+      --text:      #E8EAF0;
+      --muted:     #8B90A7;
+      --success:   #27AE60;
+      --danger:    #E74C3C;
+      --blue:      #3498DB;
+      --radius:    12px;
+      --radius-sm: 8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    /* ── Login ─────────────────────────────────────────────────────── */
+    #login-screen {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: radial-gradient(ellipse at 50% 30%, #1e1040 0%, var(--bg) 70%);
+    }
+    .login-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 48px 40px;
+      width: 100%;
+      max-width: 400px;
+      text-align: center;
+      box-shadow: 0 24px 64px rgba(0,0,0,.5);
+    }
+    .login-logo {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+    .login-card h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .login-card p {
+      color: var(--muted);
+      margin-bottom: 32px;
+      font-size: 13px;
+    }
+    .login-card input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      padding: 12px 14px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .login-card input:focus { border-color: var(--accent); }
+    .login-card button {
+      margin-top: 16px;
+      width: 100%;
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius-sm);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      font-weight: 600;
+      padding: 12px;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    .login-card button:hover { opacity: .85; }
+
+    /* ── App shell ─────────────────────────────────────────────────── */
+    #app { display: none; flex-direction: column; min-height: 100vh; }
+
+    /* Header */
+    header {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      height: 60px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-logo {
+      font-size: 18px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-logo span { color: var(--accent); }
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .last-refresh {
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .btn {
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+      padding: 7px 14px;
+      transition: background .2s, border-color .2s;
+    }
+    .btn:hover { background: var(--border); }
+    .btn-accent {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .btn-accent:hover { opacity: .85; background: var(--accent); }
+    .btn-danger { border-color: #3a2020; color: #c0504a; }
+    .btn-danger:hover { background: #2a1515; }
+
+    /* Main content */
+    main {
+      flex: 1;
+      padding: 28px;
+      max-width: 1440px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* ── KPI grid ──────────────────────────────────────────────────── */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .kpi-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+      overflow: hidden;
+    }
+    .kpi-card::after {
+      content: '';
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .kpi-icon { font-size: 22px; }
+    .kpi-label { color: var(--muted); font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .05em; }
+    .kpi-value { font-size: 32px; font-weight: 700; line-height: 1; }
+    .kpi-badge {
+      display: inline-block;
+      background: rgba(39,174,96,.15);
+      color: var(--success);
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      margin-top: 2px;
+      width: fit-content;
+    }
+
+    /* ── Chart row ─────────────────────────────────────────────────── */
+    .chart-row {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+    }
+    .chart-card h3 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 18px;
+      color: var(--muted);
+    }
+    .chart-wrap { position: relative; }
+    .chart-wrap canvas { width: 100% !important; }
+
+    /* ── Tabs ──────────────────────────────────────────────────────── */
+    .tabs-bar {
+      display: flex;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      padding: 10px 20px;
+      margin-bottom: -1px;
+      transition: color .2s, border-color .2s;
+    }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+
+    /* ── Table card ────────────────────────────────────────────────── */
+    .table-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .table-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .table-toolbar input,
+    .table-toolbar select {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      padding: 8px 12px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    .table-toolbar input:focus,
+    .table-toolbar select:focus { border-color: var(--accent); }
+    .table-toolbar input { min-width: 220px; }
+    .table-scroll { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th {
+      background: var(--card2);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 11px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 11px 16px;
+      text-align: left;
+      white-space: nowrap;
+    }
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,.02); }
+
+    .badge {
+      display: inline-block;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 9px;
+    }
+    .badge-worker   { background: rgba(52,152,219,.15); color: var(--blue); }
+    .badge-owner    { background: rgba(155,89,182,.15); color: #9B59B6; }
+    .badge-active   { background: rgba(39,174,96,.15);  color: var(--success); }
+    .badge-filled   { background: rgba(52,152,219,.15); color: var(--blue); }
+    .badge-inactive, .badge-closed { background: rgba(139,144,167,.15); color: var(--muted); }
+    .badge-pending  { background: rgba(245,166,35,.15); color: var(--accent2); }
+    .badge-accepted { background: rgba(39,174,96,.15);  color: var(--success); }
+    .badge-rejected { background: rgba(231,76,60,.15);  color: var(--danger); }
+    .badge-plan     { background: rgba(255,107,43,.12); color: var(--accent); }
+
+    .verified-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+    .verified-yes { background: var(--success); }
+    .verified-no  { background: var(--border); }
+
+    /* pagination */
+    .pagination {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 10px;
+      padding: 14px 20px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    /* ── Activity feed ─────────────────────────────────────────────── */
+    .activity-list { padding: 8px 0; }
+    .activity-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      transition: background .15s;
+    }
+    .activity-item:hover { background: rgba(255,255,255,.02); }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-icon {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    .ai-signup       { background: rgba(52,152,219,.15); }
+    .ai-listing      { background: rgba(255,107,43,.15); }
+    .ai-offer        { background: rgba(39,174,96,.15); }
+    .ai-subscription { background: rgba(245,166,35,.15); }
+    .activity-body { flex: 1; min-width: 0; }
+    .activity-title { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .activity-sub   { color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .activity-time  { color: var(--muted); font-size: 11px; white-space: nowrap; flex-shrink: 0; }
+
+    /* ── Loading spinner ───────────────────────────────────────────── */
+    .spinner-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 48px;
+    }
+    .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Empty state ───────────────────────────────────────────────── */
+    .empty {
+      text-align: center;
+      padding: 48px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    /* ── Responsive ────────────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .chart-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      main { padding: 16px; }
+      .kpi-grid { grid-template-columns: 1fr 1fr; }
+      header { padding: 0 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Login ──────────────────────────────────────────────────────── -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-logo">🍳</div>
+    <h1>RasoiLink Admin</h1>
+    <p>Enter your admin key to access the dashboard.</p>
+    <input id="key-input" type="password" placeholder="Admin key…" autocomplete="off" />
+    <button id="login-btn">Access Dashboard</button>
+  </div>
+</div>
+
+<!-- ── App ────────────────────────────────────────────────────────── -->
+<div id="app">
+  <header>
+    <div class="header-logo">🍳 <span>RasoiLink</span> Admin</div>
+    <div class="header-right">
+      <span class="last-refresh" id="last-refresh">—</span>
+      <button class="btn btn-accent" id="refresh-btn">↻ Refresh</button>
+      <button class="btn btn-danger" id="logout-btn">Logout</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- KPIs -->
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+    </div>
+
+    <!-- Charts -->
+    <div class="chart-row">
+      <div class="chart-card">
+        <h3>Signups — Last 14 Days</h3>
+        <div class="chart-wrap" style="height:220px">
+          <canvas id="lineChart"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Plan Distribution</h3>
+        <div class="chart-wrap" style="height:220px">
+          <canvas id="doughnutChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs-bar">
+      <button class="tab-btn active" data-tab="users">👤 Users</button>
+      <button class="tab-btn" data-tab="listings">📋 Listings</button>
+      <button class="tab-btn" data-tab="activity">⚡ Activity</button>
+    </div>
+
+    <!-- Users tab -->
+    <div class="tab-panel active" id="tab-users">
+      <div class="table-card">
+        <div class="table-toolbar">
+          <input id="user-search" type="text" placeholder="Search name or phone…" />
+          <select id="user-type-filter">
+            <option value="">All Types</option>
+            <option value="worker">Workers</option>
+            <option value="owner">Owners</option>
+          </select>
+          <button class="btn" id="user-search-btn">Search</button>
+        </div>
+        <div id="users-body"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
+    <!-- Listings tab -->
+    <div class="tab-panel" id="tab-listings">
+      <div class="table-card">
+        <div class="table-toolbar">
+          <select id="listing-status-filter">
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="filled">Filled</option>
+            <option value="inactive">Inactive</option>
+            <option value="closed">Closed</option>
+          </select>
+          <button class="btn" id="listing-filter-btn">Filter</button>
+        </div>
+        <div id="listings-body"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
+    <!-- Activity tab -->
+    <div class="tab-panel" id="tab-activity">
+      <div class="table-card">
+        <div id="activity-body"><div class="spinner-wrap"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+const API = '';
+
+// ── Auth ──────────────────────────────────────────────────────────────
+function getKey() { return localStorage.getItem('admin_key'); }
+
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'x-admin-key': getKey() };
+}
+
+async function apiFetch(path) {
+  const res = await fetch(API + path, { headers: authHeaders() });
+  if (res.status === 401) {
+    localStorage.removeItem('admin_key');
+    location.reload();
+    throw new Error('Unauthorized');
+  }
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || 'API error');
+  return json.data;
+}
+
+// ── Login / logout ────────────────────────────────────────────────────
+document.getElementById('login-btn').addEventListener('click', () => {
+  const val = document.getElementById('key-input').value.trim();
+  if (!val) return;
+  localStorage.setItem('admin_key', val);
+  location.reload();
+});
+document.getElementById('key-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('login-btn').click();
+});
+document.getElementById('logout-btn').addEventListener('click', () => {
+  localStorage.removeItem('admin_key');
+  location.reload();
+});
+
+// ── Time formatting ───────────────────────────────────────────────────
+function timeAgo(ts) {
+  const diff = Math.floor((Date.now() - new Date(ts)) / 1000);
+  if (diff < 60)   return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+  return `${Math.floor(diff/86400)}d ago`;
+}
+
+function fmtDate(ts) {
+  return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function fmtPay(cents) {
+  if (!cents) return '—';
+  return '$' + Math.round(cents / 100);
+}
+
+// ── Charts ────────────────────────────────────────────────────────────
+let lineChart = null, doughnutChart = null;
+
+function buildLineChart(labels, values) {
+  const canvas = document.getElementById('lineChart');
+  const ctx = canvas.getContext('2d');
+
+  // gradient
+  const gradient = ctx.createLinearGradient(0, 0, 0, 200);
+  gradient.addColorStop(0, 'rgba(255,107,43,0.35)');
+  gradient.addColorStop(1, 'rgba(255,107,43,0)');
+
+  if (lineChart) lineChart.destroy();
+  lineChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Signups',
+        data: values,
+        tension: 0.4,
+        fill: true,
+        backgroundColor: gradient,
+        borderColor: '#FF6B2B',
+        borderWidth: 2,
+        pointBackgroundColor: '#FF6B2B',
+        pointRadius: 3,
+        pointHoverRadius: 5,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          grid: { color: '#1e2135' },
+          ticks: { color: '#8B90A7', font: { family: 'Inter', size: 11 } },
+        },
+        y: {
+          grid: { color: '#1e2135' },
+          ticks: { color: '#8B90A7', font: { family: 'Inter', size: 11 }, precision: 0 },
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+}
+
+function buildDoughnutChart(planData) {
+  const canvas = document.getElementById('doughnutChart');
+  const ctx = canvas.getContext('2d');
+
+  const labels = Object.keys(planData).map(k => k.replace('_', ' '));
+  const values = Object.values(planData);
+  const colors = ['#FF6B2B','#F5A623','#27AE60','#3498DB','#9B59B6'];
+
+  if (doughnutChart) doughnutChart.destroy();
+  doughnutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors.slice(0, values.length),
+        borderWidth: 0,
+        hoverOffset: 6,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            color: '#8B90A7',
+            font: { family: 'Inter', size: 11 },
+            padding: 12,
+            boxWidth: 10,
+            boxHeight: 10,
+          },
+        },
+      },
+    },
+  });
+}
+
+// ── KPI rendering ─────────────────────────────────────────────────────
+function renderKPIs(d) {
+  const mrrDollars = (d.subscriptions.mrr_cents / 100).toFixed(0);
+  const cards = [
+    {
+      icon: '👥', label: 'Total Users', value: d.users.total.toLocaleString(),
+      badge: `+${d.users.new_today} today`,
+    },
+    {
+      icon: '📋', label: 'Active Listings', value: d.listings.active.toLocaleString(),
+    },
+    {
+      icon: '📩', label: 'Pending Applications', value: d.offers.pending.toLocaleString(),
+    },
+    {
+      icon: '💳', label: 'Active Subscriptions', value: d.subscriptions.active.toLocaleString(),
+    },
+    {
+      icon: '💰', label: 'Est. MRR', value: `$${parseInt(mrrDollars).toLocaleString()}`,
+    },
+    {
+      icon: '📈', label: 'New This Week', value: d.users.new_7d.toLocaleString(),
+      badge: 'users',
+    },
+  ];
+
+  document.getElementById('kpi-grid').innerHTML = cards.map(c => `
+    <div class="kpi-card">
+      <div class="kpi-icon">${c.icon}</div>
+      <div class="kpi-label">${c.label}</div>
+      <div class="kpi-value">${c.value}</div>
+      ${c.badge ? `<div class="kpi-badge">${c.badge}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+// ── Overview load ─────────────────────────────────────────────────────
+async function loadOverview() {
+  const d = await apiFetch('/admin/overview');
+
+  renderKPIs(d);
+
+  // Line chart — fill missing days with 0
+  const signupMap = {};
+  for (const row of d.recent_signups) signupMap[row.date] = row.count;
+
+  const lineLabels = [], lineValues = [];
+  for (let i = 13; i >= 0; i--) {
+    const dt = new Date();
+    dt.setDate(dt.getDate() - i);
+    const key = dt.toISOString().slice(0, 10);
+    lineLabels.push(key.slice(5)); // MM-DD
+    lineValues.push(signupMap[key] ?? 0);
+  }
+  buildLineChart(lineLabels, lineValues);
+
+  // Doughnut
+  buildDoughnutChart(d.subscriptions.by_plan);
+
+  // refresh timestamp
+  document.getElementById('last-refresh').textContent =
+    'Last updated ' + new Date().toLocaleTimeString();
+}
+
+// ── Users tab ─────────────────────────────────────────────────────────
+let usersPage = 1;
+let usersSearch = '', usersType = '';
+
+async function loadUsers() {
+  document.getElementById('users-body').innerHTML =
+    '<div class="spinner-wrap"><div class="spinner"></div></div>';
+
+  const params = new URLSearchParams({
+    page: usersPage,
+    limit: 20,
+    ...(usersType   ? { type:   usersType   } : {}),
+    ...(usersSearch ? { search: usersSearch } : {}),
+  });
+
+  const d = await apiFetch(`/admin/users?${params}`);
+  const { users, total, page, limit } = d;
+
+  if (!users.length) {
+    document.getElementById('users-body').innerHTML =
+      '<div class="empty">No users found.</div>';
+    return;
+  }
+
+  const totalPages = Math.ceil(total / limit);
+
+  document.getElementById('users-body').innerHTML = `
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>Name</th><th>Phone</th><th>Type</th><th>Plan</th>
+          <th>Trust</th><th>Verified</th><th>Joined</th>
+        </tr></thead>
+        <tbody>
+          ${users.map(u => `
+            <tr>
+              <td style="font-weight:500">${esc(u.name || '—')}</td>
+              <td style="color:var(--muted)">${esc(u.phone || '—')}</td>
+              <td><span class="badge badge-${u.user_type}">${u.user_type}</span></td>
+              <td>${u.plan ? `<span class="badge badge-plan">${esc(u.plan)}</span>` : '<span style="color:var(--muted)">free</span>'}</td>
+              <td>${u.trust_score ?? '—'}</td>
+              <td><span class="verified-dot ${u.is_verified ? 'verified-yes' : 'verified-no'}" title="${u.is_verified ? 'Verified' : 'Unverified'}"></span></td>
+              <td style="color:var(--muted)">${fmtDate(u.created_at)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span>Page ${page} of ${totalPages} &nbsp;·&nbsp; ${total} users</span>
+      <button class="btn" id="users-prev" ${page <= 1 ? 'disabled style="opacity:.4"' : ''}>← Prev</button>
+      <button class="btn" id="users-next" ${page >= totalPages ? 'disabled style="opacity:.4"' : ''}>Next →</button>
+    </div>
+  `;
+
+  document.getElementById('users-prev')?.addEventListener('click', () => {
+    if (usersPage > 1) { usersPage--; loadUsers(); }
+  });
+  document.getElementById('users-next')?.addEventListener('click', () => {
+    if (usersPage < totalPages) { usersPage++; loadUsers(); }
+  });
+}
+
+// ── Listings tab ──────────────────────────────────────────────────────
+let listingsPage = 1;
+let listingsStatus = '';
+
+async function loadListings() {
+  document.getElementById('listings-body').innerHTML =
+    '<div class="spinner-wrap"><div class="spinner"></div></div>';
+
+  const params = new URLSearchParams({
+    page: listingsPage,
+    limit: 20,
+    ...(listingsStatus ? { status: listingsStatus } : {}),
+  });
+
+  const d = await apiFetch(`/admin/listings?${params}`);
+  const { listings, total, page, limit } = d;
+
+  if (!listings.length) {
+    document.getElementById('listings-body').innerHTML =
+      '<div class="empty">No listings found.</div>';
+    return;
+  }
+
+  const totalPages = Math.ceil(total / limit);
+
+  document.getElementById('listings-body').innerHTML = `
+    <div class="table-scroll">
+      <table>
+        <thead><tr>
+          <th>Title</th><th>Role</th><th>Location</th><th>Status</th>
+          <th>Owner</th><th>Applications</th><th>Pay</th><th>Posted</th>
+        </tr></thead>
+        <tbody>
+          ${listings.map(l => `
+            <tr>
+              <td style="font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(l.title)}</td>
+              <td style="color:var(--muted)">${esc(l.role_code || '—')}</td>
+              <td style="color:var(--muted)">${esc([l.city, l.state].filter(Boolean).join(', ') || '—')}</td>
+              <td><span class="badge badge-${l.status}">${l.status}</span></td>
+              <td>${esc(l.owner_name || '—')}</td>
+              <td style="text-align:center">${l.application_count ?? 0}</td>
+              <td style="color:var(--muted)">${fmtPay(l.pay_min_cents)}${l.pay_max_cents ? '–' + fmtPay(l.pay_max_cents) : ''}/wk</td>
+              <td style="color:var(--muted)">${fmtDate(l.created_at)}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination">
+      <span>Page ${page} of ${totalPages} &nbsp;·&nbsp; ${total} listings</span>
+      <button class="btn" id="listings-prev" ${page <= 1 ? 'disabled style="opacity:.4"' : ''}>← Prev</button>
+      <button class="btn" id="listings-next" ${page >= totalPages ? 'disabled style="opacity:.4"' : ''}>Next →</button>
+    </div>
+  `;
+
+  document.getElementById('listings-prev')?.addEventListener('click', () => {
+    if (listingsPage > 1) { listingsPage--; loadListings(); }
+  });
+  document.getElementById('listings-next')?.addEventListener('click', () => {
+    if (listingsPage < totalPages) { listingsPage++; loadListings(); }
+  });
+}
+
+// ── Activity tab ──────────────────────────────────────────────────────
+const activityIconMap = {
+  signup:       { cls: 'ai-signup',       icon: '👤' },
+  listing:      { cls: 'ai-listing',      icon: '📋' },
+  offer:        { cls: 'ai-offer',        icon: '📩' },
+  subscription: { cls: 'ai-subscription', icon: '💳' },
+};
+
+async function loadActivity() {
+  document.getElementById('activity-body').innerHTML =
+    '<div class="spinner-wrap"><div class="spinner"></div></div>';
+
+  const d = await apiFetch('/admin/activity?limit=50');
+  const { events } = d;
+
+  if (!events.length) {
+    document.getElementById('activity-body').innerHTML =
+      '<div class="empty">No activity yet.</div>';
+    return;
+  }
+
+  const items = events.map(ev => {
+    const meta = activityIconMap[ev.type] || { cls: 'ai-signup', icon: '•' };
+    return `
+      <div class="activity-item">
+        <div class="activity-icon ${meta.cls}">${meta.icon}</div>
+        <div class="activity-body">
+          <div class="activity-title">${esc(ev.title || '—')}</div>
+          <div class="activity-sub">${esc(ev.subtitle || '')}</div>
+        </div>
+        <div class="activity-time">${timeAgo(ev.ts)}</div>
+      </div>
+    `;
+  }).join('');
+
+  document.getElementById('activity-body').innerHTML =
+    `<div class="activity-list">${items}</div>`;
+}
+
+// ── HTML escape ───────────────────────────────────────────────────────
+function esc(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ── Tab switching ─────────────────────────────────────────────────────
+const tabLoaders = {
+  users:    () => loadUsers(),
+  listings: () => loadListings(),
+  activity: () => loadActivity(),
+};
+let activeTab = 'users';
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(`tab-${tab}`).classList.add('active');
+    activeTab = tab;
+    tabLoaders[tab]?.();
+  });
+});
+
+// ── Filter / search buttons ───────────────────────────────────────────
+document.getElementById('user-search-btn').addEventListener('click', () => {
+  usersSearch = document.getElementById('user-search').value.trim();
+  usersType   = document.getElementById('user-type-filter').value;
+  usersPage   = 1;
+  loadUsers();
+});
+document.getElementById('user-search').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('user-search-btn').click();
+});
+
+document.getElementById('listing-filter-btn').addEventListener('click', () => {
+  listingsStatus = document.getElementById('listing-status-filter').value;
+  listingsPage   = 1;
+  loadListings();
+});
+
+// ── Refresh ───────────────────────────────────────────────────────────
+async function refreshAll() {
+  await loadOverview();
+  tabLoaders[activeTab]?.();
+}
+
+document.getElementById('refresh-btn').addEventListener('click', refreshAll);
+
+// ── Init ──────────────────────────────────────────────────────────────
+if (getKey()) {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+
+  refreshAll();
+  loadUsers();  // pre-load users tab
+
+  // auto-refresh every 60s
+  setInterval(refreshAll, 60_000);
+}
+</script>
+</body>
+</html>

@@ -2,6 +2,9 @@ import 'dotenv/config';
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import jwt from '@fastify/jwt';
+import staticFiles from '@fastify/static';
+import { fileURLToPath } from 'url';
+import path from 'path';
 import { authRoutes }    from './routes/auth.js';
 import { workerRoutes }  from './routes/workers.js';
 import { ownerRoutes }   from './routes/owners.js';
@@ -50,6 +53,17 @@ app.decorate('authenticate', async (req: any, reply: any) => {
   } catch {
     reply.status(401).send({ success: false, error: 'Unauthorized', data: null });
   }
+});
+
+// Serve admin dashboard at /admin
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+await app.register(staticFiles, {
+  root: path.join(__dirname, '../public'),
+  prefix: '/admin/',
+  decorateReply: false,
+});
+app.get('/admin', async (req, reply) => {
+  return reply.sendFile('admin.html', path.join(__dirname, '../public'));
 });
 
 // Health check
