@@ -2482,13 +2482,6 @@
           to_email:           CONFIG.notifyEmail
         });
 
-        // Welcome email to user
-        await emailjs.send(CONFIG.emailjs.serviceId, CONFIG.emailjs.welcomeTemplate, {
-          to_name:    name,
-          to_email:   email,
-          signup_type: isWorker ? 'worker' : 'restaurant owner'
-        });
-
         emailOk = true;
         console.log('✅ EmailJS: sent');
       } else {
@@ -2519,7 +2512,7 @@
       console.warn('⚠️ WhatsApp invite failed:', e.message);
     }
 
-    // Also pass app_link into the welcome email now that we have it
+    // Welcome email — sent after we have appLink from Railway API
     try {
       if (typeof emailjs !== 'undefined') {
         await emailjs.send(CONFIG.emailjs.serviceId, CONFIG.emailjs.welcomeTemplate, {
@@ -2529,8 +2522,11 @@
           app_link:    appLink,
           phone:       normalizedPhone,
         });
+        console.log('✅ Welcome email sent with app_link');
       }
-    } catch(e) { /* already sent above, this is bonus */ }
+    } catch(e) {
+      console.warn('⚠️ Welcome email error:', e.message);
+    }
 
     // ——— 4. SHOW SUCCESS ———
     document.getElementById('worker-form').style.display = 'none';
