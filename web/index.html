@@ -2500,17 +2500,37 @@
 
     // ——— 3. SEND WHATSAPP INVITE via Railway API ———
     let whatsappSent = false;
+    let appLink = 'https://expo.dev/artifacts/eas/mHiG8YPMZFLnCgis79sEQv.apk';
     try {
       const waRes = await fetch('https://rasoilink-production.up.railway.app/waitlist/join', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, phone: normalizedPhone, type }),
       });
-      whatsappSent = waRes.ok;
-      console.log(waRes.ok ? '✅ WhatsApp invite queued' : '⚠️ WhatsApp invite: non-ok response');
+      if (waRes.ok) {
+        const waData = await waRes.json();
+        whatsappSent = waData?.data?.whatsapp_sent === true;
+        if (waData?.data?.app_link) appLink = waData.data.app_link;
+        console.log('✅ Railway API ok — whatsapp_sent:', whatsappSent);
+      } else {
+        console.warn('⚠️ WhatsApp invite: non-ok response');
+      }
     } catch (e) {
       console.warn('⚠️ WhatsApp invite failed:', e.message);
     }
+
+    // Also pass app_link into the welcome email now that we have it
+    try {
+      if (typeof emailjs !== 'undefined') {
+        await emailjs.send(CONFIG.emailjs.serviceId, CONFIG.emailjs.welcomeTemplate, {
+          to_name:     name,
+          to_email:    email,
+          signup_type: isWorker ? 'worker' : 'restaurant owner',
+          app_link:    appLink,
+          phone:       normalizedPhone,
+        });
+      }
+    } catch(e) { /* already sent above, this is bonus */ }
 
     // ——— 4. SHOW SUCCESS ———
     document.getElementById('worker-form').style.display = 'none';
@@ -2519,30 +2539,36 @@
     const successEl = document.getElementById('form-success');
     successEl.style.display = 'block';
 
-    // Personalised success message
     const firstName = name.split(' ')[0];
-    const waStep = whatsappSent
+
+    const waBox = whatsappSent
       ? `<div style="background:rgba(37,211,102,0.15); border:1px solid rgba(37,211,102,0.4); border-radius:10px; padding:14px 18px; margin:16px 0; text-align:left;">
            <p style="margin:0; font-size:14px; font-weight:600; color:#25D366;">📲 Check WhatsApp on ${normalizedPhone}</p>
-           <p style="margin:6px 0 0; font-size:13px; color:rgba(255,255,255,0.75);">We just sent you a message with your download link and login instructions.</p>
+           <p style="margin:6px 0 0; font-size:13px; color:rgba(255,255,255,0.75);">We sent you the app download link + login instructions on WhatsApp.</p>
          </div>`
-      : `<div style="background:rgba(255,200,0,0.12); border:1px solid rgba(255,200,0,0.3); border-radius:10px; padding:14px 18px; margin:16px 0; text-align:left;">
-           <p style="margin:0; font-size:14px; font-weight:600; color:#FFD700;">⚠️ WhatsApp message may be delayed</p>
-           <p style="margin:6px 0 0; font-size:13px; color:rgba(255,255,255,0.75);">We'll reach out to ${normalizedPhone} shortly with your invite link.</p>
+      : `<div style="background:rgba(255,200,0,0.1); border:1px solid rgba(255,200,0,0.3); border-radius:10px; padding:14px 18px; margin:16px 0; text-align:left;">
+           <p style="margin:0; font-size:14px; font-weight:600; color:#FFD700;">💬 WhatsApp invite coming soon</p>
+           <p style="margin:6px 0 0; font-size:13px; color:rgba(255,255,255,0.75);">We'll reach out to <strong>${normalizedPhone}</strong> on WhatsApp shortly.<br>In the meantime — download the app now:</p>
          </div>`;
 
     successEl.innerHTML = `
       <span class="success-icon">🎉</span>
       <h3>You're on the list, ${firstName}!</h3>
-      ${waStep}
-      <p style="font-size:14px; color:rgba(255,255,255,0.65); margin-bottom:20px;">
-        Know someone who needs RasoiLink? Share it with them.
+      ${waBox}
+      <a href="${appLink}" target="_blank"
+         style="display:block; background:var(--saffron); color:white; padding:14px 24px; border-radius:10px;
+                text-decoration:none; font-size:15px; font-weight:700; margin:4px 0 20px; text-align:center;">
+        📲 Download RasoiLink App (Android)
+      </a>
+      <p style="font-size:13px; color:rgba(255,255,255,0.5); margin-bottom:20px;">
+        After installing: open the app → enter <strong style="color:rgba(255,255,255,0.8)">${normalizedPhone}</strong> → enter the OTP we send on WhatsApp → you're in.
       </p>
       <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
         <a href="https://wa.me/?text=${encodeURIComponent('Just joined the RasoiLink waitlist — the first AI job platform for Indian restaurant workers in the US. Join here: https://rasoilink.com')}"
            target="_blank"
-           style="background:rgba(255,255,255,0.12); color:white; padding:10px 20px; border-radius:8px; text-decoration:none; font-size:14px; font-weight:600; border:1px solid rgba(255,255,255,0.2);">
-          📲 Share on WhatsApp
+           style="background:rgba(255,255,255,0.1); color:white; padding:10px 20px; border-radius:8px;
+                  text-decoration:none; font-size:13px; font-weight:600; border:1px solid rgba(255,255,255,0.2);">
+          📤 Share with a friend
         </a>
       </div>
     `;

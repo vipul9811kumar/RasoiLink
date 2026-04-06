@@ -46,6 +46,6 @@ export async function waitlistRoutes(app: FastifyInstance) {
       console.log(`[Waitlist] WHATSAPP_ENABLED=false — would send to ${phone}:\n${message}`);
     }
 
-    return reply.send({ success: true, data: { queued: true, phone }, error: null });
+    return reply.send({ success: true, data: { queued: WHATSAPP_ENABLED, whatsapp_sent: WHATSAPP_ENABLED, phone, app_link: APP_LINK }, error: null });
   });
 }
