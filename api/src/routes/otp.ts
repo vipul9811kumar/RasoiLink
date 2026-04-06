@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
-import { sendWhatsApp, WHATSAPP_ENABLED } from '../whatsapp.js';
+import { sendWhatsApp, WHATSAPP_ENABLED, normalizePhone } from '../whatsapp.js';
 
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -29,8 +29,9 @@ export async function otpRoutes(app: FastifyInstance) {
 
   // POST /auth/send-otp
   app.post('/auth/send-otp', async (req, reply) => {
-    const { phone, purpose = 'verify' } = req.body as any;
-    if (!phone) return reply.status(400).send({ success: false, error: 'Phone required', data: null });
+    const { phone: rawPhone, purpose = 'verify' } = req.body as any;
+    if (!rawPhone) return reply.status(400).send({ success: false, error: 'Phone required', data: null });
+    const phone = normalizePhone(rawPhone);
 
     // Invalidate old OTPs for this phone+purpose
     await query(`
@@ -67,8 +68,9 @@ export async function otpRoutes(app: FastifyInstance) {
 
   // POST /auth/verify-otp
   app.post('/auth/verify-otp', async (req, reply) => {
-    const { phone, code, purpose = 'verify' } = req.body as any;
-    if (!phone || !code) return reply.status(400).send({ success: false, error: 'Phone and code required', data: null });
+    const { phone: rawPhone, code, purpose = 'verify' } = req.body as any;
+    if (!rawPhone || !code) return reply.status(400).send({ success: false, error: 'Phone and code required', data: null });
+    const phone = normalizePhone(rawPhone);
 
     // Find valid OTP
     const result = await query(`
@@ -113,10 +115,11 @@ export async function otpRoutes(app: FastifyInstance) {
   // POST /auth/otp-login
   // Verify OTP, auto-register if new user, return JWT + is_new flag.
   app.post('/auth/otp-login', async (req, reply) => {
-    const { phone, code, name, user_type = 'worker', language_code = 'en' } = req.body as any;
-    if (!phone || !code) {
+    const { phone: rawPhone, code, name, user_type = 'worker', language_code = 'en' } = req.body as any;
+    if (!rawPhone || !code) {
       return reply.status(400).send({ success: false, error: 'Phone and code required', data: null });
     }
+    const phone = normalizePhone(rawPhone);
 
     // Find valid OTP (any purpose)
     const otpRes = await query(`

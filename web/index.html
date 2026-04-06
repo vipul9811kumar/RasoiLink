@@ -1046,6 +1046,71 @@
     border-radius: 2px;
     transition: all 0.3s;
   }
+  .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .hamburger.open span:nth-child(2) { opacity: 0; }
+  .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+
+  /* Mobile menu panel */
+  @media (min-width: 901px) {
+    .mobile-menu { display: none !important; }
+    .hamburger { display: none !important; }
+  }
+
+  .mobile-menu {
+    display: flex;
+    visibility: hidden;
+    pointer-events: none;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 99;
+    background: rgba(26,26,26,0.97);
+    backdrop-filter: blur(20px);
+    padding: 80px 24px 32px;
+    flex-direction: column;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    transform: translateY(-110%);
+    transition: transform 0.35s cubic-bezier(0.16,1,0.3,1), visibility 0s linear 0.35s;
+  }
+  .mobile-menu.open {
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0);
+    transition: transform 0.35s cubic-bezier(0.16,1,0.3,1), visibility 0s linear 0s;
+  }
+  .mobile-menu-link {
+    color: rgba(255,255,255,0.8);
+    font-size: 16px;
+    font-weight: 500;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    text-align: left;
+    font-family: 'DM Sans', sans-serif;
+    transition: color 0.2s;
+    width: 100%;
+  }
+  .mobile-menu-link:hover { color: var(--saffron); }
+  .mobile-menu-lang {
+    display: flex;
+    gap: 8px;
+    padding: 16px 0 4px;
+  }
+  .mobile-menu-cta {
+    margin-top: 8px;
+    background: var(--saffron);
+    color: white;
+    padding: 14px 24px;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 15px;
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    width: 100%;
+  }
 
   /* ============ BETA GET STARTED ============ */
   .beta-section {
@@ -1180,6 +1245,8 @@
 
     .nav-center { display: none; }
     .nav-link { display: none; }
+    .nav-cta { display: none; }
+    .hamburger { display: flex; }
 
     .hero-content { flex-direction: column; padding: 110px 24px 60px; gap: 40px; }
     .hero-title { font-size: 44px; letter-spacing: -1.5px; }
@@ -1237,8 +1304,23 @@
     <button class="nav-link" onclick="goTo('#trust')" data-i18n="nav.trust">Trust</button>
     <button class="nav-link" onclick="goTo('#pricing')" data-i18n="nav.pricing">Pricing</button>
     <button class="nav-cta" onclick="goTo('#waitlist')" data-i18n="nav.waitlist">Join Waitlist</button>
+    <button class="hamburger" id="hamburgerBtn" onclick="toggleMobileMenu()" aria-label="Menu">
+      <span></span><span></span><span></span>
+    </button>
   </div>
 </nav>
+
+<!-- MOBILE MENU -->
+<div class="mobile-menu" id="mobileMenu">
+  <div class="mobile-menu-lang">
+    <button class="lang-pill active" id="mob-lang-en" onclick="switchLang('en');closeMobileMenu()">EN</button>
+    <button class="lang-pill" id="mob-lang-hi" onclick="switchLang('hi');closeMobileMenu()">हिं</button>
+  </div>
+  <button class="mobile-menu-link" onclick="goTo('#how');closeMobileMenu()" data-i18n="nav.how">How it works</button>
+  <button class="mobile-menu-link" onclick="goTo('#trust');closeMobileMenu()" data-i18n="nav.trust">Trust</button>
+  <button class="mobile-menu-link" onclick="goTo('#pricing');closeMobileMenu()" data-i18n="nav.pricing">Pricing</button>
+  <button class="mobile-menu-cta" onclick="goTo('#waitlist');closeMobileMenu()" data-i18n="nav.waitlist">Join Waitlist</button>
+</div>
 
 <!-- HERO -->
 <section class="hero">
@@ -1920,7 +2002,7 @@
     <div class="waitlist-form" id="worker-form">
       <div class="form-row">
         <input class="form-input" type="text" placeholder="Your name" id="w-name" data-i18n-placeholder="form.name">
-        <input class="form-input" type="tel" placeholder="Phone / WhatsApp" id="w-phone" data-i18n-placeholder="form.phone">
+        <input class="form-input" type="tel" placeholder="+1 (555) 000-0000 — WhatsApp" id="w-phone" data-i18n-placeholder="form.phone" required>
       </div>
       <input class="form-input" type="email" placeholder="Email address" id="w-email" data-i18n-placeholder="form.email">
       <div class="form-row">
@@ -1956,7 +2038,7 @@
       </div>
       <input class="form-input" type="email" placeholder="Business email" id="o-email" data-i18n-placeholder="form.bizEmail">
       <div class="form-row">
-        <input class="form-input" type="tel" placeholder="Phone / WhatsApp" id="o-phone" data-i18n-placeholder="form.phone">
+        <input class="form-input" type="tel" placeholder="+1 (555) 000-0000 — WhatsApp" id="o-phone" data-i18n-placeholder="form.phone" required>
         <select class="form-select" id="o-state">
           <option value="" disabled selected data-i18n="form.stateSelect2">Your state</option>
           <option>New York / New Jersey</option>
@@ -2048,6 +2130,22 @@
   function goTo(id) {
     const el = document.querySelector(id);
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ——— MOBILE MENU ———
+  function toggleMobileMenu() {
+    const menu = document.getElementById('mobileMenu');
+    const btn = document.getElementById('hamburgerBtn');
+    const isOpen = menu.classList.toggle('open');
+    btn.classList.toggle('open', isOpen);
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+  }
+  function closeMobileMenu() {
+    const menu = document.getElementById('mobileMenu');
+    const btn = document.getElementById('hamburgerBtn');
+    menu.classList.remove('open');
+    btn.classList.remove('open');
+    document.body.style.overflow = '';
   }
 
   // ——— LANGUAGE SWITCHING ———
@@ -2285,14 +2383,19 @@
     // Validate required fields
     const emailEl = document.getElementById(isWorker ? 'w-email' : 'o-email');
     const nameEl  = document.getElementById(isWorker ? 'w-name'  : 'o-name');
+    const phoneEl = document.getElementById(isWorker ? 'w-phone' : 'o-phone');
 
-    if (!name || !email) {
-      [nameEl, emailEl].forEach(el => {
-        if (!el.value.trim()) {
-          el.style.borderColor = 'rgba(255,80,80,0.7)';
-          el.focus();
-          setTimeout(() => el.style.borderColor = '', 2500);
-        }
+    const missing = [
+      !name  && nameEl,
+      !email && emailEl,
+      !phone && phoneEl,
+    ].filter(Boolean);
+
+    if (missing.length) {
+      missing.forEach(el => {
+        el.style.borderColor = 'rgba(255,80,80,0.7)';
+        el.focus();
+        setTimeout(() => el.style.borderColor = '', 2500);
       });
       return;
     }
@@ -2303,6 +2406,13 @@
       setTimeout(() => emailEl.style.borderColor = '', 2500);
       return;
     }
+
+    // Normalize phone to E.164 (+1XXXXXXXXXX for US)
+    const digits = phone.replace(/\D/g, '');
+    const normalizedPhone = phone.startsWith('+') ? phone
+      : digits.length === 10 ? `+1${digits}`
+      : digits.length === 11 && digits.startsWith('1') ? `+${digits}`
+      : `+${digits}`;
 
     // Disable button & show loading state
     const btn = document.querySelector(`#${isWorker ? 'worker' : 'owner'}-form .form-submit`);
@@ -2321,7 +2431,7 @@
       const fields = {
         'Name':         name,
         'Email':        email,
-        'Phone':        phone || '—',
+        'Phone':        normalizedPhone,
         'Type':         isWorker ? 'Worker' : 'Owner',
         'State':        state || '—',
         'Signed Up At': signedUpAt
@@ -2365,7 +2475,7 @@
           signup_type:        isWorker ? '👨‍🍳 Worker' : '🏪 Restaurant Owner',
           name,
           email,
-          phone:              phone || '—',
+          phone:              normalizedPhone,
           role_or_restaurant: roleOrRestaurant,
           state:              state || '—',
           signed_up_at:       signedUpAt,
@@ -2389,17 +2499,17 @@
     }
 
     // ——— 3. SEND WHATSAPP INVITE via Railway API ———
-    if (phone) {
-      try {
-        await fetch('https://rasoilink-production.up.railway.app/waitlist/join', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, phone, type }),
-        });
-        console.log('✅ WhatsApp invite sent');
-      } catch (e) {
-        console.warn('⚠️ WhatsApp invite failed:', e.message);
-      }
+    let whatsappSent = false;
+    try {
+      const waRes = await fetch('https://rasoilink-production.up.railway.app/waitlist/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone: normalizedPhone, type }),
+      });
+      whatsappSent = waRes.ok;
+      console.log(waRes.ok ? '✅ WhatsApp invite queued' : '⚠️ WhatsApp invite: non-ok response');
+    } catch (e) {
+      console.warn('⚠️ WhatsApp invite failed:', e.message);
     }
 
     // ——— 4. SHOW SUCCESS ———
@@ -2410,14 +2520,25 @@
     successEl.style.display = 'block';
 
     // Personalised success message
+    const firstName = name.split(' ')[0];
+    const waStep = whatsappSent
+      ? `<div style="background:rgba(37,211,102,0.15); border:1px solid rgba(37,211,102,0.4); border-radius:10px; padding:14px 18px; margin:16px 0; text-align:left;">
+           <p style="margin:0; font-size:14px; font-weight:600; color:#25D366;">📲 Check WhatsApp on ${normalizedPhone}</p>
+           <p style="margin:6px 0 0; font-size:13px; color:rgba(255,255,255,0.75);">We just sent you a message with your download link and login instructions.</p>
+         </div>`
+      : `<div style="background:rgba(255,200,0,0.12); border:1px solid rgba(255,200,0,0.3); border-radius:10px; padding:14px 18px; margin:16px 0; text-align:left;">
+           <p style="margin:0; font-size:14px; font-weight:600; color:#FFD700;">⚠️ WhatsApp message may be delayed</p>
+           <p style="margin:6px 0 0; font-size:13px; color:rgba(255,255,255,0.75);">We'll reach out to ${normalizedPhone} shortly with your invite link.</p>
+         </div>`;
+
     successEl.innerHTML = `
       <span class="success-icon">🎉</span>
-      <h3>You're on the list, ${name.split(' ')[0]}!</h3>
-      <p>
-        We'll reach out as soon as we launch in your area.<br>
+      <h3>You're on the list, ${firstName}!</h3>
+      ${waStep}
+      <p style="font-size:14px; color:rgba(255,255,255,0.65); margin-bottom:20px;">
         Know someone who needs RasoiLink? Share it with them.
       </p>
-      <div style="margin-top:20px; display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+      <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
         <a href="https://wa.me/?text=${encodeURIComponent('Just joined the RasoiLink waitlist — the first AI job platform for Indian restaurant workers in the US. Join here: https://rasoilink.com')}"
            target="_blank"
            style="background:rgba(255,255,255,0.12); color:white; padding:10px 20px; border-radius:8px; text-decoration:none; font-size:14px; font-weight:600; border:1px solid rgba(255,255,255,0.2);">

@@ -171,14 +171,23 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
   const [error, setError]       = useState('');
   const [devCode, setDevCode]   = useState('');
 
+  function normalizePhone(raw: string): string {
+    const digits = raw.replace(/\D/g, '');
+    if (raw.startsWith('+')) return raw;
+    if (digits.length === 10) return `+1${digits}`;
+    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+    return `+${digits}`;
+  }
+
   async function sendOtp() {
     if (!phone || phone.replace(/[^0-9]/g,'').length < 10) {
-      setError('Enter a valid phone number'); return;
+      setError('Enter a valid phone number (e.g. +1 2125550000)'); return;
     }
     if (!name.trim()) { setError('Enter your name'); return; }
+    const normalizedPhone = normalizePhone(phone);
     setLoading(true); setError('');
     try {
-      const res = await api.post('/auth/send-otp', { phone, purpose: 'login' });
+      const res = await api.post('/auth/send-otp', { phone: normalizedPhone, purpose: 'login' });
       if (res.data.data?.dev_code) setDevCode(res.data.data.dev_code);
       setStep('otp');
     } catch(e: any) {
@@ -191,7 +200,7 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
     setLoading(true); setError('');
     try {
       const res = await api.post('/auth/otp-login', {
-        phone, code: otp, name: name.trim(), user_type: userType, language_code: language,
+        phone: normalizePhone(phone), code: otp, name: name.trim(), user_type: userType, language_code: language,
       });
       await TokenStore.set('auth_token', res.data.data.token);
       onLogin(res.data.data.user, res.data.data.is_new);
@@ -269,7 +278,7 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
         style={s.input}
         placeholder="+1 (555) 000-0000"
         value={phone}
-        onChangeText={v => { setPhone(v.replace(/[^0-9+]/g,'')); setError(''); }}
+        onChangeText={v => { setPhone(v.replace(/[^0-9+()\s-]/g,'')); setError(''); }}
         keyboardType="phone-pad"
         autoCapitalize="none"
       />
