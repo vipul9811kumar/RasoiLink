@@ -226,6 +226,22 @@ export async function adminRoutes(app: FastifyInstance) {
     });
   });
 
+  // ── Delete user by phone ─────────────────────────────────────────────────────
+  app.delete('/admin/users/by-phone/:phone', async (req: any, reply) => {
+    if (!checkAdminKey(req, reply)) return;
+    const phone = decodeURIComponent(req.params.phone);
+    const userRes = await query(`SELECT user_id, user_type FROM app.users WHERE phone = $1`, [phone]);
+    if (!userRes.rows.length) {
+      return reply.status(404).send({ success: false, error: 'User not found', data: null });
+    }
+    const { user_id, user_type } = userRes.rows[0];
+    await query(`DELETE FROM app.otps WHERE phone = $1`, [phone]);
+    if (user_type === 'worker') await query(`DELETE FROM app.worker_profiles WHERE worker_id = $1`, [user_id]);
+    if (user_type === 'owner')  await query(`DELETE FROM app.owner_profiles  WHERE owner_id  = $1`, [user_id]);
+    await query(`DELETE FROM app.users WHERE user_id = $1`, [user_id]);
+    return reply.send({ success: true, data: { deleted: user_id, phone }, error: null });
+  });
+
   // ── Activity feed ────────────────────────────────────────────────────────────
   app.get('/admin/activity', async (req: any, reply) => {
     if (!checkAdminKey(req, reply)) return;
