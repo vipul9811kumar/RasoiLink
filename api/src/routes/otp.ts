@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { query } from '../db.js';
-import { sendWhatsApp, WHATSAPP_ENABLED, normalizePhone } from '../whatsapp.js';
+import { sendOtpWhatsApp, WHATSAPP_ENABLED, normalizePhone } from '../whatsapp.js';
 
 function generateOTP(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -48,12 +48,9 @@ export async function otpRoutes(app: FastifyInstance) {
 
     console.log(`\n🔐 OTP for ${phone}: ${code}\n`);
 
-    // Send via WhatsApp if Twilio is configured
+    // Send OTP via WhatsApp (AiSensy)
     if (WHATSAPP_ENABLED) {
-      await sendWhatsApp(
-        phone,
-        `🔐 *Your RasoiLink code is: ${code}*\n\nThis code expires in 10 minutes.\nDo not share it with anyone.\n\n_Reply STOP to unsubscribe_`,
-      );
+      await sendOtpWhatsApp(phone, code);
     }
 
     return reply.send({

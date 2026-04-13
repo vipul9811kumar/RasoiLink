@@ -1,61 +1,112 @@
 /**
- * WhatsApp Business sender via Twilio REST API.
+ * WhatsApp Business sender via AiSensy API.
  * No SDK needed — uses Node 18+ built-in fetch.
  *
  * Required env vars (set in Railway):
- *   TWILIO_ACCOUNT_SID   — Twilio account SID
- *   TWILIO_AUTH_TOKEN    — Twilio auth token
- *   TWILIO_WHATSAPP_FROM — WhatsApp-enabled number, e.g. +14155238886 (sandbox default)
+ *   AISENSY_API_KEY          — JWT API key from AiSensy dashboard
+ *   AISENSY_OTP_CAMPAIGN     — AiSensy campaign/template name for OTP  (default: rasoilink_otp)
+ *   AISENSY_INVITE_CAMPAIGN  — AiSensy campaign/template name for invite (default: rasoilink_invite)
  *
- * When env vars are not set the message is logged to console only (safe for dev/staging).
+ * When env vars are not set messages are logged to console only (safe for dev/staging).
  */
 
-const SID   = process.env.TWILIO_ACCOUNT_SID;
-const TOKEN = process.env.TWILIO_AUTH_TOKEN;
-const FROM  = process.env.TWILIO_WHATSAPP_FROM ?? '+14155238886'; // Twilio sandbox default
+const API_KEY        = process.env.AISENSY_API_KEY;
+const OTP_CAMPAIGN   = process.env.AISENSY_OTP_CAMPAIGN   ?? 'rasoilink_otp';
+const INVITE_CAMPAIGN = process.env.AISENSY_INVITE_CAMPAIGN ?? 'rasoilink_invite';
 
-export const WHATSAPP_ENABLED = !!(SID && TOKEN);
+const AISENSY_URL = 'https://backend.aisensy.com/campaign/t1/api/v2';
+
+export const WHATSAPP_ENABLED = !!API_KEY;
 
 /**
- * Normalize a phone number to E.164 format required by Twilio.
+ * Normalize a phone number to E.164 format.
  * - Already has '+': use as-is
  * - 10 digits (US): prepend +1
  * - 11 digits starting with 1 (US with country code): prepend +
- * - Otherwise: prepend + and hope for the best
+ * - Otherwise: prepend +
  */
 export function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
-  if (phone.startsWith('+')) return phone; // already E.164
-  if (digits.length === 10) return `+1${digits}`; // US 10-digit
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`; // US 11-digit
+  if (phone.startsWith('+')) return phone;
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
   return `+${digits}`;
 }
 
-export async function sendWhatsApp(toPhone: string, message: string): Promise<void> {
-  const normalized = normalizePhone(toPhone);
+/** Strip leading + for AiSensy — it expects digits only, no + prefix */
+function toAisensyPhone(e164: string): string {
+  return e164.replace(/^\+/, '');
+}
 
-  if (!WHATSAPP_ENABLED) {
-    console.log(`[WhatsApp] ${normalized} → ${message.slice(0, 80)}...`);
-    return;
-  }
-
-  const url = `https://api.twilio.com/2010-04-01/Accounts/${SID}/Messages.json`;
-
-  const res = await fetch(url, {
+async function callAisensy(
+  campaignName: string,
+  destination: string,
+  userName: string,
+  templateParams: string[],
+): Promise<void> {
+  const res = await fetch(AISENSY_URL, {
     method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + Buffer.from(`${SID}:${TOKEN}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams({
-      To:   `whatsapp:${normalized}`,
-      From: `whatsapp:${FROM}`,
-      Body: message,
-    }).toString(),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      apiKey: API_KEY,
+      campaignName,
+      destination,
+      userName,
+      templateParams,
+      source: 'new-landing-page form',
+      media: {},
+      buttons: [],
+      carouselCards: [],
+      location: {},
+    }),
   });
 
+  const body = await res.json().catch(() => ({}));
+
   if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Twilio error ${res.status}: ${err}`);
+    throw new Error(`AiSensy error ${res.status}: ${JSON.stringify(body)}`);
   }
+  console.log(`[WhatsApp] AiSensy ${campaignName} → ${destination} queued`, body);
+}
+
+/**
+ * Send OTP login code via WhatsApp.
+ * Template: rasoilink_otp
+ * Params:   {{1}} = code
+ */
+export async function sendOtpWhatsApp(phone: string, code: string): Promise<void> {
+  const normalized = normalizePhone(phone);
+  if (!WHATSAPP_ENABLED) {
+    console.log(`[WhatsApp OTP] disabled — ${normalized} code=${code}`);
+    return;
+  }
+  await callAisensy(OTP_CAMPAIGN, toAisensyPhone(normalized), 'User', [code]);
+}
+
+/**
+ * Send waitlist invite with app download link via WhatsApp.
+ * Template: rasoilink_invite
+ * Params:   {{1}} = name, {{2}} = role, {{3}} = appLink, {{4}} = phone
+ */
+export async function sendInviteWhatsApp(
+  phone: string,
+  name: string,
+  role: string,
+  appLink: string,
+): Promise<void> {
+  const normalized = normalizePhone(phone);
+  if (!WHATSAPP_ENABLED) {
+    console.log(`[WhatsApp Invite] disabled — ${normalized} name=${name}`);
+    return;
+  }
+  await callAisensy(INVITE_CAMPAIGN, toAisensyPhone(normalized), name, [name, role, appLink, normalized]);
+}
+
+/**
+ * Generic fallback — kept so any future callers compile.
+ * Logs the message; for structured sends use sendOtpWhatsApp / sendInviteWhatsApp.
+ */
+export async function sendWhatsApp(toPhone: string, message: string): Promise<void> {
+  const normalized = normalizePhone(toPhone);
+  console.log(`[WhatsApp] generic send to ${normalized}: ${message.slice(0, 80)}...`);
 }
