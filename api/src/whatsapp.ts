@@ -85,8 +85,9 @@ export async function sendOtpWhatsApp(phone: string, code: string): Promise<void
 
 /**
  * Send waitlist invite with app download link via WhatsApp.
- * Template: rasoilink_invite
- * Params:   {{1}} = name, {{2}} = role, {{3}} = appLink, {{4}} = phone
+ * Template: rl_invite_v2
+ * Body params:  {{1}} = name, {{2}} = role, {{3}} = phone
+ * Button param: {{4}} = appLink (dynamic CTA button URL — appended after body params)
  */
 export async function sendInviteWhatsApp(
   phone: string,
@@ -99,7 +100,8 @@ export async function sendInviteWhatsApp(
     console.log(`[WhatsApp Invite] disabled — ${normalized} name=${name}`);
     return;
   }
-  await callAisensy(INVITE_CAMPAIGN, toAisensyPhone(normalized), name, [name, role, appLink, normalized]);
+  // templateParams order: body {{1}}, {{2}}, {{3}}, then button URL
+  await callAisensy(INVITE_CAMPAIGN, toAisensyPhone(normalized), name, [name, role, normalized, appLink]);
 }
 
 /**
