@@ -11,8 +11,8 @@
  */
 
 const API_KEY        = process.env.AISENSY_API_KEY;
-const OTP_CAMPAIGN   = process.env.AISENSY_OTP_CAMPAIGN   ?? 'rasoilink_otp';
-const INVITE_CAMPAIGN = process.env.AISENSY_INVITE_CAMPAIGN ?? 'rasoilink_invite';
+const OTP_CAMPAIGN    = process.env.AISENSY_OTP_CAMPAIGN    ?? 'rl_code_v2';
+const INVITE_CAMPAIGN = process.env.AISENSY_INVITE_CAMPAIGN ?? 'rl_invite_v2';
 
 const AISENSY_URL = 'https://backend.aisensy.com/campaign/t1/api/v2';
 
