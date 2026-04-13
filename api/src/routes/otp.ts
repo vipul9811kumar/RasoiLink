@@ -29,7 +29,7 @@ export async function otpRoutes(app: FastifyInstance) {
 
   // POST /auth/send-otp
   app.post('/auth/send-otp', async (req, reply) => {
-    const { phone: rawPhone, purpose = 'verify' } = req.body as any;
+    const { phone: rawPhone, purpose = 'verify', name } = req.body as any;
     if (!rawPhone) return reply.status(400).send({ success: false, error: 'Phone required', data: null });
     const phone = normalizePhone(rawPhone);
 
@@ -50,7 +50,7 @@ export async function otpRoutes(app: FastifyInstance) {
 
     // Send OTP via WhatsApp (AiSensy)
     if (WHATSAPP_ENABLED) {
-      await sendOtpWhatsApp(phone, code);
+      await sendOtpWhatsApp(phone, code, name);
     }
 
     return reply.send({

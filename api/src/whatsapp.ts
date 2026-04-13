@@ -11,7 +11,7 @@
  */
 
 const API_KEY        = process.env.AISENSY_API_KEY;
-const OTP_CAMPAIGN    = process.env.AISENSY_OTP_CAMPAIGN    ?? 'rl_code_v2';
+const OTP_CAMPAIGN    = process.env.AISENSY_OTP_CAMPAIGN    ?? 'rl_code_v3';
 const INVITE_CAMPAIGN = process.env.AISENSY_INVITE_CAMPAIGN ?? 'rl_invite_v2';
 
 const AISENSY_URL = 'https://backend.aisensy.com/campaign/t1/api/v2';
@@ -71,16 +71,17 @@ async function callAisensy(
 
 /**
  * Send OTP login code via WhatsApp.
- * Template: rasoilink_otp
- * Params:   {{1}} = code
+ * Template: rl_code_v3
+ * Params:   {{1}} = firstName, {{2}} = code
  */
-export async function sendOtpWhatsApp(phone: string, code: string): Promise<void> {
+export async function sendOtpWhatsApp(phone: string, code: string, name = 'there'): Promise<void> {
   const normalized = normalizePhone(phone);
   if (!WHATSAPP_ENABLED) {
     console.log(`[WhatsApp OTP] disabled — ${normalized} code=${code}`);
     return;
   }
-  await callAisensy(OTP_CAMPAIGN, toAisensyPhone(normalized), 'User', [code]);
+  const firstName = name.split(' ')[0];
+  await callAisensy(OTP_CAMPAIGN, toAisensyPhone(normalized), firstName, [firstName, code]);
 }
 
 /**
