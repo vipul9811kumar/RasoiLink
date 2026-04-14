@@ -103,6 +103,7 @@ export default function App() {
     await TokenStore.clear('auth_token');
     setUser(null);
     setNeedsOnboarding(false);
+    // keep user_type in storage so returning users skip name/type fields
   }
 
   let content;
@@ -162,14 +163,21 @@ function LanguageSelector({ onSelect }: { onSelect: (code: string) => void }) {
 
 // ─── Auth Screen — Phone → OTP → JWT ─────────────────────────────────────────
 function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) => void; language: string }) {
-  const [step, setStep]         = useState<'phone'|'otp'>('phone');
-  const [phone, setPhone]       = useState('');
-  const [name, setName]         = useState('');
-  const [userType, setUserType] = useState<'worker'|'owner'>('worker');
-  const [otp, setOtp]           = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
-  const [devCode, setDevCode]   = useState('');
+  const [step, setStep]           = useState<'phone'|'otp'>('phone');
+  const [phone, setPhone]         = useState('');
+  const [name, setName]           = useState('');
+  const [userType, setUserType]   = useState<'worker'|'owner'>('worker');
+  const [otp, setOtp]             = useState('');
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState('');
+  const [devCode, setDevCode]     = useState('');
+  const [returning, setReturning] = useState(false);
+
+  useEffect(() => {
+    TokenStore.get('user_type').then(t => {
+      if (t === 'worker' || t === 'owner') { setUserType(t); setReturning(true); }
+    });
+  }, []);
 
   function normalizePhone(raw: string): string {
     const digits = raw.replace(/\D/g, '');
@@ -183,7 +191,7 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
     if (!phone || phone.replace(/[^0-9]/g,'').length < 10) {
       setError('Enter a valid phone number (e.g. +1 2125550000)'); return;
     }
-    if (!name.trim()) { setError('Enter your name'); return; }
+    if (!returning && !name.trim()) { setError('Enter your name'); return; }
     const normalizedPhone = normalizePhone(phone);
     setLoading(true); setError('');
     try {
@@ -203,6 +211,7 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
         phone: normalizePhone(phone), code: otp, name: name.trim(), user_type: userType, language_code: language,
       });
       await TokenStore.set('auth_token', res.data.data.token);
+      await TokenStore.set('user_type', res.data.data.user.user_type);
       onLogin(res.data.data.user, res.data.data.is_new);
     } catch(e: any) {
       setError(e.response?.data?.error ?? 'Invalid code. Try again.');
@@ -254,25 +263,26 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
     <ScrollView contentContainerStyle={s.authContainer}>
       <Text style={s.logo}>🍳</Text>
       <Text style={s.appName}>RasoiLink</Text>
-      <Text style={s.tagline}>Fair Work. Fair Pay. Real Trust.</Text>
+      <Text style={s.tagline}>{returning ? 'Welcome back!' : 'Fair Work. Fair Pay. Real Trust.'}</Text>
 
-      <TextInput
-        style={s.input}
-        placeholder="Your full name"
-        value={name}
-        onChangeText={v => { setName(v); setError(''); }}
-        autoCapitalize="words"
-      />
-
-      <View style={s.typeToggle}>
-        {(['worker','owner'] as const).map(t => (
-          <TouchableOpacity key={t} style={[s.typeBtn, userType===t && s.typeBtnActive]} onPress={() => setUserType(t)}>
-            <Text style={[s.typeBtnText, userType===t && s.typeBtnTextActive]}>
-              {t==='worker' ? '👨‍🍳 I\'m a Worker' : '🏪 I\'m an Owner'}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+      {!returning && <>
+        <TextInput
+          style={s.input}
+          placeholder="Your full name"
+          value={name}
+          onChangeText={v => { setName(v); setError(''); }}
+          autoCapitalize="words"
+        />
+        <View style={s.typeToggle}>
+          {(['worker','owner'] as const).map(t => (
+            <TouchableOpacity key={t} style={[s.typeBtn, userType===t && s.typeBtnActive]} onPress={() => setUserType(t)}>
+              <Text style={[s.typeBtnText, userType===t && s.typeBtnTextActive]}>
+                {t==='worker' ? '👨‍🍳 I\'m a Worker' : '🏪 I\'m an Owner'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </>}
 
       <TextInput
         style={s.input}
@@ -283,13 +293,13 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
         autoCapitalize="none"
       />
       <Text style={{fontSize:11,color:'#999',marginTop:-8,marginBottom:16,alignSelf:'flex-start'}}>
-        We'll send a code to this WhatsApp number
+        Enter your phone number to receive a login code
       </Text>
 
       {error ? <Text style={s.error}>{error}</Text> : null}
 
       <TouchableOpacity style={s.btn} onPress={sendOtp} disabled={loading}>
-        {loading ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Send Code on WhatsApp →</Text>}
+        {loading ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Get Login Code →</Text>}
       </TouchableOpacity>
     </ScrollView>
   );
