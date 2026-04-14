@@ -237,11 +237,13 @@ export async function adminRoutes(app: FastifyInstance) {
     const { user_id, user_type } = userRes.rows[0];
     await query(`DELETE FROM app.otps WHERE phone = $1`, [phone]);
     if (user_type === 'worker') {
-      await query(`DELETE FROM app.offers  WHERE worker_id = $1`, [user_id]);
+      await query(`DELETE FROM app.agreements WHERE offer_id IN (SELECT offer_id FROM app.offers WHERE worker_id = $1)`, [user_id]);
+      await query(`DELETE FROM app.offers WHERE worker_id = $1`, [user_id]);
       await query(`DELETE FROM app.worker_profiles WHERE worker_id = $1`, [user_id]);
     }
     if (user_type === 'owner') {
-      await query(`DELETE FROM app.offers   WHERE listing_id IN (SELECT listing_id FROM app.listings WHERE owner_id = $1)`, [user_id]);
+      await query(`DELETE FROM app.agreements WHERE offer_id IN (SELECT offer_id FROM app.offers WHERE listing_id IN (SELECT listing_id FROM app.listings WHERE owner_id = $1))`, [user_id]);
+      await query(`DELETE FROM app.offers WHERE listing_id IN (SELECT listing_id FROM app.listings WHERE owner_id = $1)`, [user_id]);
       await query(`DELETE FROM app.listings WHERE owner_id = $1`, [user_id]);
       await query(`DELETE FROM app.owner_profiles WHERE owner_id = $1`, [user_id]);
     }
