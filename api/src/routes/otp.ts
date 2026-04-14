@@ -148,7 +148,7 @@ export async function otpRoutes(app: FastifyInstance) {
 
     // Check if user exists
     let userRow = await query(
-      `SELECT user_id, phone, name, user_type, language_code, trust_score, is_verified FROM app.users WHERE phone = $1`,
+      `SELECT user_id, phone, name, user_type, language_code, trust_score, is_verified, created_at FROM app.users WHERE phone = $1`,
       [phone],
     );
 
@@ -159,7 +159,7 @@ export async function otpRoutes(app: FastifyInstance) {
       const inserted = await query(
         `INSERT INTO app.users (phone, name, user_type, language_code, is_verified, password_hash)
          VALUES ($1, $2, $3, $4, true, '')
-         RETURNING user_id, phone, name, user_type, language_code, trust_score, is_verified`,
+         RETURNING user_id, phone, name, user_type, language_code, trust_score, is_verified, created_at`,
         [phone, name?.trim() || 'New User', user_type, language_code],
       );
       const uid = inserted.rows[0].user_id;

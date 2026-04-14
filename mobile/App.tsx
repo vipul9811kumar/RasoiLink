@@ -1383,7 +1383,7 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
         ['Account Type', isOwner?'🏪 Owner':'👨‍🍳 Worker'],
         ['Trust Score', `⭐ ${user.trust_score??'0.0'}`],
         ['Verified', user.is_verified?'✅ Yes':'❌ No'],
-        ['Member Since', new Date(user.created_at).toLocaleDateString()],
+        ['Member Since', user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'],
       ] as [string,string][]).map(([k,v])=>(
         <View key={k} style={s.profileRow}>
           <Text style={s.profileLabel}>{k}</Text>
@@ -1426,7 +1426,7 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
         <Text style={[s.formLabel,{marginBottom:10}]}>🆘 Support</Text>
         <TouchableOpacity
           style={{flexDirection:'row',alignItems:'center',backgroundColor:'#25D366',borderRadius:12,padding:16,marginBottom:10}}
-          onPress={() => Linking.openURL('https://wa.me/19199168849?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
+          onPress={() => Linking.openURL('https://wa.me/19843197647?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
         >
           <Text style={{fontSize:20,marginRight:10}}>💬</Text>
           <View>
@@ -1436,7 +1436,7 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
         </TouchableOpacity>
         <TouchableOpacity
           style={{flexDirection:'row',alignItems:'center',backgroundColor:'#F5F5F5',borderRadius:12,padding:16,marginBottom:10}}
-          onPress={() => Linking.openURL('mailto:rasoilink@gmail.com?subject=RasoiLink%20Support')}
+          onPress={() => Linking.openURL('mailto:support@rasoilink.com?subject=RasoiLink%20Support')}
         >
           <Text style={{fontSize:20,marginRight:10}}>✉️</Text>
           <View>
