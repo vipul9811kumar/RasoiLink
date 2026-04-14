@@ -1877,8 +1877,8 @@
             <div class="beta-step-line"></div>
           </div>
           <div class="beta-step-body">
-            <div class="beta-step-title">Receive your invite on WhatsApp</div>
-            <div class="beta-step-desc">We'll send you a direct download link and a one-time access code within 24 hours.</div>
+            <div class="beta-step-title">Download the app instantly</div>
+            <div class="beta-step-desc">Get the direct download link right on this page — no app store needed.</div>
             <span class="beta-badge">✓ No app store needed</span>
           </div>
         </div>
@@ -1908,8 +1908,8 @@
             <div class="beta-step-line"></div>
           </div>
           <div class="beta-step-body">
-            <div class="beta-step-title">Browse jobs & get WhatsApp alerts</div>
-            <div class="beta-step-desc">Apply to listings directly. Matching jobs ping you on WhatsApp the moment they're posted.</div>
+            <div class="beta-step-title">Browse jobs & get instant alerts</div>
+            <div class="beta-step-desc">Apply to listings directly. Matching jobs ping you the moment they're posted.</div>
             <span class="beta-badge">✓ Free to use</span>
           </div>
         </div>
@@ -1942,8 +1942,8 @@
             <div class="beta-step-line"></div>
           </div>
           <div class="beta-step-body">
-            <div class="beta-step-title">Receive your invite on WhatsApp</div>
-            <div class="beta-step-desc">We'll send you a direct download link and access code within 24 hours.</div>
+            <div class="beta-step-title">Download the app instantly</div>
+            <div class="beta-step-desc">Get the direct download link right on this page — no app store needed.</div>
             <span class="beta-badge">✓ No app store needed</span>
           </div>
         </div>
@@ -2538,27 +2538,20 @@
 
     const firstName = name.split(' ')[0];
 
-    const waBox = whatsappSent
-      ? `<div style="background:rgba(37,211,102,0.15); border:1px solid rgba(37,211,102,0.4); border-radius:10px; padding:14px 18px; margin:16px 0; text-align:left;">
-           <p style="margin:0; font-size:14px; font-weight:600; color:#25D366;">📲 Check WhatsApp on ${normalizedPhone}</p>
-           <p style="margin:6px 0 0; font-size:13px; color:rgba(255,255,255,0.75);">We sent you the app download link + login instructions on WhatsApp.</p>
-         </div>`
-      : `<div style="background:rgba(255,200,0,0.1); border:1px solid rgba(255,200,0,0.3); border-radius:10px; padding:14px 18px; margin:16px 0; text-align:left;">
-           <p style="margin:0; font-size:14px; font-weight:600; color:#FFD700;">💬 WhatsApp invite coming soon</p>
-           <p style="margin:6px 0 0; font-size:13px; color:rgba(255,255,255,0.75);">We'll reach out to <strong>${normalizedPhone}</strong> on WhatsApp shortly.<br>In the meantime — download the app now:</p>
-         </div>`;
-
     successEl.innerHTML = `
       <span class="success-icon">🎉</span>
       <h3>You're on the list, ${firstName}!</h3>
-      ${waBox}
+      <div style="background:rgba(255,107,43,0.15); border:1px solid rgba(255,107,43,0.4); border-radius:10px; padding:14px 18px; margin:16px 0; text-align:left;">
+        <p style="margin:0; font-size:14px; font-weight:600; color:#FF6B2B;">✅ You're registered!</p>
+        <p style="margin:6px 0 0; font-size:13px; color:rgba(255,255,255,0.75);">Download the app below and sign in with <strong style="color:rgba(255,255,255,0.9)">${normalizedPhone}</strong>.</p>
+      </div>
       <a href="${appLink}" target="_blank"
          style="display:block; background:var(--saffron); color:white; padding:14px 24px; border-radius:10px;
                 text-decoration:none; font-size:15px; font-weight:700; margin:4px 0 20px; text-align:center;">
         📲 Download RasoiLink App (Android)
       </a>
       <p style="font-size:13px; color:rgba(255,255,255,0.5); margin-bottom:20px;">
-        After installing: open the app → enter <strong style="color:rgba(255,255,255,0.8)">${normalizedPhone}</strong> → enter the OTP we send on WhatsApp → you're in.
+        After installing: open the app → enter <strong style="color:rgba(255,255,255,0.8)">${normalizedPhone}</strong> → your login code will appear on screen → you're in.
       </p>
       <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
         <a href="https://wa.me/?text=${encodeURIComponent('Just joined the RasoiLink waitlist — the first AI job platform for Indian restaurant workers in the US. Join here: https://rasoilink.com')}"
