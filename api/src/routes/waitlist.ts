@@ -8,7 +8,7 @@
 import { FastifyInstance } from 'fastify';
 import { sendInviteWhatsApp, WHATSAPP_ENABLED, normalizePhone } from '../whatsapp.js';
 
-const APP_LINK = process.env.APP_INVITE_LINK ?? 'https://expo.dev/artifacts/eas/dxRDyGdVLLAQ1WNoMxP9DS.apk';
+const APP_LINK = process.env.APP_INVITE_LINK ?? 'https://github.com/vipul9811kumar/RasoiLink/releases/download/v1.0.0-beta/rasoilink-latest.apk';
 
 export async function waitlistRoutes(app: FastifyInstance) {
 
