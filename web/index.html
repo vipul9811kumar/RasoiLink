@@ -2504,7 +2504,7 @@
       if (waRes.ok) {
         const waData = await waRes.json();
         whatsappSent = waData?.data?.whatsapp_sent === true;
-        if (waData?.data?.app_link) appLink = waData.data.app_link;
+        // app_link from Railway is intentionally ignored — use the hardcoded GitHub Releases URL above
         console.log('✅ Railway API ok — whatsapp_sent:', whatsappSent);
       } else {
         console.warn('⚠️ WhatsApp invite: non-ok response');
