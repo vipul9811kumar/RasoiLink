@@ -157,8 +157,8 @@ export async function otpRoutes(app: FastifyInstance) {
     if (!userRow.rows.length) {
       // Auto-register new user
       const inserted = await query(
-        `INSERT INTO app.users (phone, name, user_type, language_code, is_verified)
-         VALUES ($1, $2, $3, $4, true)
+        `INSERT INTO app.users (phone, name, user_type, language_code, is_verified, password_hash)
+         VALUES ($1, $2, $3, $4, true, '')
          RETURNING user_id, phone, name, user_type, language_code, trust_score, is_verified`,
         [phone, name?.trim() || 'New User', user_type, language_code],
       );
