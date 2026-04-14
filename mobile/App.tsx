@@ -188,7 +188,7 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
     setLoading(true); setError('');
     try {
       const res = await api.post('/auth/send-otp', { phone: normalizedPhone, purpose: 'login' });
-      if (res.data.data?.dev_code) setDevCode(res.data.data.dev_code);
+      if (res.data.data?.login_code) setDevCode(res.data.data.login_code);
       setStep('otp');
     } catch(e: any) {
       setError(e.response?.data?.error ?? 'Failed to send code. Try again.');
@@ -213,13 +213,13 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
     return (
       <ScrollView contentContainerStyle={s.authContainer}>
         <Text style={s.logo}>📱</Text>
-        <Text style={s.appName}>Check WhatsApp</Text>
-        <Text style={s.tagline}>We sent a 6-digit code to {phone}</Text>
+        <Text style={s.appName}>Enter Your Code</Text>
+        <Text style={s.tagline}>Use the login code below to sign in</Text>
 
         {devCode ? (
           <View style={{backgroundColor:'#E8F5E9',borderRadius:8,padding:12,marginBottom:16,width:'100%'}}>
             <Text style={{color:'#2E7D32',textAlign:'center',fontWeight:'700',fontSize:15}}>
-              Dev code: {devCode}
+              Your login code: {devCode}
             </Text>
           </View>
         ) : null}

@@ -23,14 +23,17 @@ export async function waitlistRoutes(app: FastifyInstance) {
     const isWorker = type !== 'owner';
     const role     = isWorker ? 'worker' : 'restaurant owner';
 
-    if (WHATSAPP_ENABLED) {
-      sendInviteWhatsApp(phone, name, role, APP_LINK).catch(e =>
-        console.error('[Waitlist WhatsApp] failed for', phone, e.message),
-      );
-    } else {
-      console.log(`[Waitlist] WHATSAPP_ENABLED=false — would send invite to ${phone}`);
-    }
+    // WHATSAPP TEMPORARILY DISABLED — re-enable when AiSensy templates approved
+    // if (WHATSAPP_ENABLED) {
+    //   sendInviteWhatsApp(phone, name, role, APP_LINK).catch(e =>
+    //     console.error('[Waitlist WhatsApp] failed for', phone, e.message),
+    //   );
+    // } else {
+    //   console.log(`[Waitlist] WHATSAPP_ENABLED=false — would send invite to ${phone}`);
+    // }
 
-    return reply.send({ success: true, data: { queued: WHATSAPP_ENABLED, whatsapp_sent: WHATSAPP_ENABLED, phone, app_link: APP_LINK }, error: null });
+    console.log(`[Waitlist] Join by ${name} (${phone}) as ${role} — WhatsApp bypassed, app_link: ${APP_LINK}`);
+
+    return reply.send({ success: true, data: { queued: false, whatsapp_sent: false, phone, app_link: APP_LINK }, error: null });
   });
 }

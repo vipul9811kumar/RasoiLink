@@ -48,16 +48,17 @@ export async function otpRoutes(app: FastifyInstance) {
 
     console.log(`\n🔐 OTP for ${phone}: ${code}\n`);
 
-    // Send OTP via WhatsApp (AiSensy)
-    if (WHATSAPP_ENABLED) {
-      await sendOtpWhatsApp(phone, code, name);
-    }
+    // WHATSAPP TEMPORARILY DISABLED — re-enable when AiSensy templates approved
+    // if (WHATSAPP_ENABLED) {
+    //   await sendOtpWhatsApp(phone, code, name);
+    // }
 
+    // Always return the code in the response so the app can show it to the user
     return reply.send({
       success: true,
       data: {
-        message: WHATSAPP_ENABLED ? 'OTP sent to your WhatsApp' : 'OTP generated',
-        ...(!WHATSAPP_ENABLED ? { dev_code: code } : {}),
+        message: 'Your login code is ready',
+        login_code: code,
       },
       error: null,
     });
