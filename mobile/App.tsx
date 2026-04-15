@@ -2141,8 +2141,11 @@ function BrowseWorkersTab({ user }: { user: any }) {
   async function payHireFee() {
     setHireFeeLoading(true);
     try {
+      const pricesRes = await api.get('/billing/prices');
+      const hireFeePrice = pricesRes.data?.data?.hire_fee;
+      if (!hireFeePrice) { alert('Could not load pricing. Please try again.'); return; }
       const res = await billing.checkout(
-        'price_1TDDs3FE7IzsL1G5AwdDdcAC',
+        hireFeePrice,
         'hire_fee',
         'https://rasoilink-production.up.railway.app/health',
         'https://rasoilink-production.up.railway.app/health',
@@ -2154,7 +2157,7 @@ function BrowseWorkersTab({ user }: { user: any }) {
         setShowHireFee(false);
       }
     } catch(e: any) {
-      alert('Could not start checkout. Please try again.');
+      alert('Could not start checkout: ' + (e?.response?.data?.error ?? e?.message ?? 'Please try again.'));
     } finally { setHireFeeLoading(false); }
   }
 

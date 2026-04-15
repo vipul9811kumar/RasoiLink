@@ -86,6 +86,14 @@ async function patchDbFunctions() {
   } catch (e: any) {
     console.error('[startup] DB function patch failed:', e.message);
   }
+
+  // Ensure hire_fee_paid column exists on listings (not in original migration)
+  try {
+    await query(`ALTER TABLE app.listings ADD COLUMN IF NOT EXISTS hire_fee_paid BOOLEAN NOT NULL DEFAULT false`);
+    console.log('[startup] hire_fee_paid column ensured on app.listings');
+  } catch (e: any) {
+    console.error('[startup] hire_fee_paid patch failed:', e.message);
+  }
 }
 const IS_DEV = process.env.NODE_ENV !== 'production';
 
