@@ -33,6 +33,19 @@ export async function otpRoutes(app: FastifyInstance) {
     if (!rawPhone) return reply.status(400).send({ success: false, error: 'Phone required', data: null });
     const phone = normalizePhone(rawPhone);
 
+    // Waitlist gate — allow existing users through, block new numbers not on waitlist
+    const existingUser = await query(`SELECT user_id FROM app.users WHERE phone = $1`, [phone]);
+    if (!existingUser.rows.length) {
+      const onWaitlist = await query(`SELECT waitlist_id FROM app.waitlist WHERE phone = $1`, [phone]);
+      if (!onWaitlist.rows.length) {
+        return reply.status(403).send({
+          success: false,
+          error: 'This number is not on our waitlist. Please register at rasoilink.com to get access.',
+          data: null,
+        });
+      }
+    }
+
     // Invalidate old OTPs for this phone+purpose
     await query(`
       UPDATE app.otps SET used_at = now()
