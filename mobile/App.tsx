@@ -296,7 +296,17 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
         autoCapitalize="none"
       />
 
-      {error ? <Text style={s.error}>{error}</Text> : null}
+      {error ? (
+        error.includes('rasoilink.com') ? (
+          <Text style={s.error}>
+            {error.split('rasoilink.com')[0]}
+            <Text style={{color:ORANGE, textDecorationLine:'underline', fontWeight:'700'}} onPress={() => Linking.openURL('https://rasoilink.com')}>rasoilink.com</Text>
+            {error.split('rasoilink.com')[1]}
+          </Text>
+        ) : (
+          <Text style={s.error}>{error}</Text>
+        )
+      ) : null}
 
       <TouchableOpacity style={s.btn} onPress={sendOtp} disabled={loading}>
         {loading ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Get Login Code →</Text>}
