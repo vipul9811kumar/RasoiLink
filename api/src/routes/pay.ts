@@ -150,6 +150,49 @@ export async function payRoutes(app: FastifyInstance) {
     });
   });
 
+  // GET /owners/:id/ratings — owner's trust score and ratings from workers
+  app.get<{ Params: { id: string } }>('/owners/:id/ratings', {
+    preHandler: [app.authenticate],
+  }, async (req, reply) => {
+    const [ratingsRes, userRes] = await Promise.all([
+      query(`
+        SELECT
+          r.rating_id, r.period_month, r.rater_type,
+          r.dim_pay_reliability, r.dim_communication, r.dim_overall,
+          r.private_note, r.submitted_at,
+          u.name as rater_name
+        FROM app.ratings r
+        JOIN app.users u ON r.rater_id = u.user_id
+        WHERE r.rated_id = $1
+        ORDER BY r.submitted_at DESC
+      `, [req.params.id]),
+      query(`SELECT trust_score, is_verified FROM app.users WHERE user_id = $1`, [req.params.id]),
+    ]);
+
+    const ratings = ratingsRes.rows;
+    const user    = userRes.rows[0];
+    const avg = (key: string) => {
+      const vals = ratings.map((r: any) => r[key]).filter((v: any) => v != null);
+      return vals.length ? (vals.reduce((a: number, b: number) => a + b, 0) / vals.length).toFixed(1) : null;
+    };
+
+    return reply.send({
+      success: true,
+      data: {
+        trust_score: user?.trust_score,
+        is_verified: user?.is_verified,
+        ratings,
+        averages: {
+          overall:         avg('dim_overall'),
+          pay_reliability: avg('dim_pay_reliability'),
+          communication:   avg('dim_communication'),
+        },
+        total_ratings: ratings.length,
+      },
+      error: null,
+    });
+  });
+
   // PATCH /pay/:id/confirm
   app.patch<{ Params: { id: string } }>('/pay/:id/confirm', {
     preHandler: [app.authenticate],

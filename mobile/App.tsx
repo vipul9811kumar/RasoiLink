@@ -1376,10 +1376,18 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
   const [showEditor, setShowEditor] = useState(false);
   const [plan, setPlan] = useState<any>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [liveScore, setLiveScore] = useState<string|null>(null);
 
   useEffect(() => {
     billing.subscription()
       .then(r => setPlan(r.data.data))
+      .catch(() => {});
+    // Fetch live trust score
+    const endpoint = isOwner
+      ? `/owners/${user.user_id}/ratings`
+      : `/workers/${user.user_id}/ratings`;
+    api.get(endpoint)
+      .then(r => setLiveScore(r.data.data?.trust_score ?? null))
       .catch(() => {});
   }, []);
 
@@ -1405,7 +1413,7 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
 
       {([
         ['Account Type', isOwner?'🏪 Owner':'👨‍🍳 Worker'],
-        ['Trust Score', `⭐ ${user.trust_score??'0.0'}`],
+        ['Trust Score', `⭐ ${liveScore ?? user.trust_score ?? '0.0'}`],
         ['Verified', user.is_verified?'✅ Yes':'❌ No'],
         ['Member Since', user.created_at ? new Date(user.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'],
       ] as [string,string][]).map(([k,v])=>(
@@ -1695,6 +1703,9 @@ function PayTrustTab({ user }: { user: any }) {
   const [ratings, setRatings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab]         = useState<'pay'|'trust'>('pay');
+  const [showRateOwner, setShowRateOwner]   = useState<any>(null);
+  const [ownerRatingForm, setOwnerRatingForm] = useState({ dim_overall:0, dim_pay_reliability:0, dim_communication:0 });
+  const [submittingOwnerRating, setSubmittingOwnerRating] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -1710,6 +1721,26 @@ function PayTrustTab({ user }: { user: any }) {
     await api.patch(`/pay/${cycle_id}/confirm`, {});
     const res = await api.get(`/workers/${user.user_id}/pay`);
     setPay(res.data.data);
+  }
+
+  async function submitOwnerRating() {
+    if (!showRateOwner) return;
+    setSubmittingOwnerRating(true);
+    try {
+      await api.post('/ratings', {
+        agreement_id:     showRateOwner.agreement_id,
+        rated_id:         showRateOwner.owner_id,
+        period_month:     showRateOwner.period_start.slice(0,7),
+        rater_type:       'worker',
+        dim_overall:       ownerRatingForm.dim_overall,
+        dim_pay_reliability: ownerRatingForm.dim_pay_reliability,
+        dim_communication: ownerRatingForm.dim_communication,
+      });
+      setShowRateOwner(null);
+      setOwnerRatingForm({ dim_overall:0, dim_pay_reliability:0, dim_communication:0 });
+    } catch(e: any) {
+      alert(e.response?.data?.error ?? 'Failed to submit rating');
+    } finally { setSubmittingOwnerRating(false); }
   }
 
   if (loading) return <View style={s.center}><ActivityIndicator color={ORANGE}/></View>;
@@ -1824,6 +1855,14 @@ function PayTrustTab({ user }: { user: any }) {
                   <Text style={s.btnText}>✅ Confirm I received this payment</Text>
                 </TouchableOpacity>
               )}
+              {cycle.status === 'worker_confirmed' && (
+                <TouchableOpacity
+                  style={[s.btn, {marginTop:10, paddingVertical:8, backgroundColor:'#FF6B00'}]}
+                  onPress={() => setShowRateOwner(cycle)}
+                >
+                  <Text style={s.btnText}>⭐ Rate this Restaurant</Text>
+                </TouchableOpacity>
+              )}
               {cycle.status === 'late' && (
                 <Text style={{marginTop:8, fontSize:12, color:'#f44336', fontWeight:'600'}}>
                   ⚠️ Payment overdue — contact your employer or raise a dispute
@@ -1902,6 +1941,45 @@ function PayTrustTab({ user }: { user: any }) {
           ))}
         </ScrollView>
       )}
+
+      {/* Rate Restaurant modal */}
+      <Modal visible={!!showRateOwner} transparent animationType="slide">
+        <View style={{flex:1,justifyContent:'flex-end',backgroundColor:'rgba(0,0,0,0.5)'}}>
+          <View style={{backgroundColor:'#fff',borderRadius:16,padding:24,margin:16}}>
+            <Text style={{fontSize:18,fontWeight:'700',marginBottom:4}}>⭐ Rate Restaurant</Text>
+            <Text style={{fontSize:13,color:'#666',marginBottom:16}}>{showRateOwner?.restaurant_name}</Text>
+            {[
+              {key:'dim_overall',          label:'Overall Experience'},
+              {key:'dim_pay_reliability',  label:'Pay on Time'},
+              {key:'dim_communication',    label:'Communication'},
+            ].map(dim => (
+              <View key={dim.key} style={{marginBottom:12}}>
+                <Text style={{fontSize:13,fontWeight:'600',marginBottom:6}}>{dim.label}</Text>
+                <View style={{flexDirection:'row',gap:8}}>
+                  {[1,2,3,4,5].map(n => (
+                    <TouchableOpacity key={n} onPress={() => setOwnerRatingForm(f => ({...f,[dim.key]:n}))}>
+                      <Text style={{fontSize:28,color:(ownerRatingForm as any)[dim.key]>=n?'#FFD700':'#ddd'}}>★</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ))}
+            <TouchableOpacity
+              style={[s.btn,{marginTop:8,backgroundColor:ORANGE}]}
+              onPress={submitOwnerRating}
+              disabled={submittingOwnerRating || ownerRatingForm.dim_overall === 0}
+            >
+              {submittingOwnerRating
+                ? <ActivityIndicator color="#fff"/>
+                : <Text style={s.btnText}>Submit Rating</Text>
+              }
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowRateOwner(null)} style={{marginTop:12,alignItems:'center'}}>
+              <Text style={{color:'#999'}}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
