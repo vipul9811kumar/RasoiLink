@@ -504,9 +504,9 @@ function WorkerApp({ user, language, onLogout, onLanguageChange }: { user: any; 
         </View>
       </View>
       <View style={{flex:1}}>
-        {tab === 'jobs'    && <JobsTab user={user}/>}
-        {tab === 'offers'  && <OffersTab user={user}/>}
-        {tab === 'pay'     && <PayTrustTab user={user}/>}
+        {tab === 'jobs'    && <JobsTab user={user} key={tab}/>}
+        {tab === 'offers'  && <OffersTab user={user} key={tab}/>}
+        {tab === 'pay'     && <PayTrustTab user={user} key={tab}/>}
         {tab === 'chat'    && <ChatTab user={user} language={language}/>}
         {tab === 'profile' && <ProfileTab user={user} language={language} onLogout={onLogout} onLanguageChange={onLanguageChange}/>}
       </View>
@@ -528,12 +528,12 @@ function OwnerApp({ user, language, onLogout, onLanguageChange }: { user: any; l
         </View>
       </View>
       <View style={{flex:1}}>
-        {tab === 'dashboard'  && <OwnerDashboard user={user}/>}
+        {tab === 'dashboard'  && <OwnerDashboard user={user} key={tab}/>}
         {tab === 'listings'   && <OwnerListings user={user}/>}
-        {tab === 'applicants' && <OwnerApplicants user={user}/>}
+        {tab === 'applicants' && <OwnerApplicants user={user} key={tab}/>}
         {tab === 'workers'     && <BrowseWorkersTab user={user}/>}
-        {tab === 'agreements'  && <OwnerAgreementsTab user={user}/>}
-        {tab === 'pay'         && <OwnerPayTab user={user}/>}
+        {tab === 'agreements'  && <OwnerAgreementsTab user={user} key={tab}/>}
+        {tab === 'pay'         && <OwnerPayTab user={user} key={tab}/>}
         {tab === 'profile'    && <ProfileTab user={user} language={language} onLogout={onLogout} onLanguageChange={onLanguageChange}/>}
       </View>
       <TabBar tabs={[{key:'dashboard',icon:'📊',label:'Dashboard'},{key:'listings',icon:'📋',label:'Jobs'},{key:'workers',icon:'🔍',label:'Workers'},{key:'applicants',icon:'👥',label:'Applicants'},{key:'agreements',icon:'📄',label:'Agreements'},{key:'pay',icon:'💸',label:'Pay'},{key:'profile',icon:'👤',label:'Profile'}]} active={tab} onChange={(t:any)=>setTab(t)} color={DARK}/>
