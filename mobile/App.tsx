@@ -49,11 +49,8 @@ const billing = {
   portal: (return_url: string) => api.post('/billing/portal', { return_url }),
 };
 
-const PRICE_IDS: Record<string,string> = {
-  owner_starter: 'price_1TMUp3JtdcosZbkCH4p5nM8C',
-  owner_growth:  'price_1TMUp3JtdcosZbkC5hmVbVpf',
-  worker_boost:  'price_1TMUp4JtdcosZbkCqxmdGnxG',
-};
+// Price IDs are fetched from the server at runtime (see UpgradeModal)
+// so they never need to be hardcoded in the APK.
 
 function isPlanGateError(e: any) {
   return e?.response?.status === 402 && e?.response?.data?.upgrade_required === true;
@@ -1062,20 +1059,31 @@ function OwnerApplicants({ user }: { user: any }) {
 
 // ─── Upgrade Modal ───────────────────────────────────────────────────────────
 function UpgradeModal({ visible, onClose, userType, message, currentPlan }: { visible: boolean; onClose: ()=>void; userType: string; message?: string; currentPlan?: string }) {
-  const [loading, setLoading] = useState<string|null>(null);
+  const [loading, setLoading]   = useState<string|null>(null);
+  const [prices, setPrices]     = useState<Record<string,string>>({});
+
+  useEffect(() => {
+    if (visible) {
+      api.get('/billing/prices')
+        .then(r => setPrices(r.data.data ?? {}))
+        .catch(() => {});
+    }
+  }, [visible]);
+
   const allPlans = userType === 'owner' ? [
-    { id:'starter', name:'Starter', price:'$39/mo', price_id: PRICE_IDS.owner_starter,
+    { id:'starter', name:'Starter', price:'$39/mo', price_id: prices.owner_starter ?? '',
       features:['5 active job posts','View worker contacts','AI match engine'], highlight:false },
-    { id:'growth', name:'Growth', price:'$99/mo', price_id: PRICE_IDS.owner_growth,
+    { id:'growth', name:'Growth', price:'$99/mo', price_id: prices.owner_growth ?? '',
       features:['Unlimited posts','Everything in Starter','WhatsApp alerts'], highlight:true },
   ] : [
-    { id:'worker_boost', name:'Boost', price:'$7/mo', price_id: PRICE_IDS.worker_boost,
+    { id:'worker_boost', name:'Boost', price:'$7/mo', price_id: prices.worker_boost ?? '',
       features:['Priority in search','Verified badge','WhatsApp job alerts'], highlight:true },
   ];
   // Filter out plans the user already has (e.g. Starter owner only sees Growth)
   const plans = currentPlan ? allPlans.filter(p => p.id !== currentPlan) : allPlans;
 
   async function handleUpgrade(plan: any) {
+    if (!plan.price_id) { alert('Prices still loading. Please try again.'); return; }
     setLoading(plan.id);
     try {
       const res = await billing.checkout(

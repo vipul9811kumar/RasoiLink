@@ -321,6 +321,29 @@ export async function payRoutes(app: FastifyInstance) {
   // ── NEW: STRIPE BILLING ROUTES ────────────────────────────────────────────
 
   /**
+   * GET /billing/prices
+   * Returns current price IDs from server env — app fetches these at runtime
+   * so price IDs never need to be hardcoded in the APK.
+   */
+  app.get('/billing/prices', {
+    preHandler: [app.authenticate],
+  }, async (_req, reply) => {
+    return reply.send({
+      success: true,
+      data: {
+        owner_starter:    process.env.STRIPE_PRICE_STARTER       ?? '',
+        owner_growth:     process.env.STRIPE_PRICE_GROWTH        ?? '',
+        worker_boost:     process.env.STRIPE_PRICE_WORKER_BOOST  ?? '',
+        hire_fee:         process.env.STRIPE_PRICE_HIRE_FEE      ?? '',
+        job_boost:        process.env.STRIPE_PRICE_JOB_BOOST     ?? '',
+        course:           process.env.STRIPE_PRICE_COURSE        ?? '',
+        background_check: process.env.STRIPE_PRICE_BG_CHECK      ?? '',
+      },
+      error: null,
+    });
+  });
+
+  /**
    * GET /billing/subscription
    * Returns the current user's active plan + feature flags
    */
