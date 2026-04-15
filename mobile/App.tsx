@@ -1518,6 +1518,26 @@ function OffersTab({ user }: { user: any }) {
   const [loading, setLoading]   = useState(true);
   const [responding, setResponding] = useState<string|null>(null);
 
+  // Worker self-terminate (resign)
+  const [showResign, setShowResign] = useState<any>(null);
+  const [resigning, setResigning]   = useState(false);
+
+  async function resign() {
+    if (!showResign?.agreement_id) return;
+    setResigning(true);
+    try {
+      await api.patch(`/agreements/${showResign.agreement_id}/terminate`, {
+        reason: 'worker_resigned',
+        last_working_date: new Date().toISOString().slice(0, 10),
+        notes: 'Worker initiated resignation via app',
+      });
+      setShowResign(null);
+      load();
+    } catch (e: any) {
+      alert(e.response?.data?.error ?? 'Failed to resign. Please try again.');
+    } finally { setResigning(false); }
+  }
+
   function load() {
     setLoading(true);
     api.get(`/workers/${user.user_id}/offers`)
@@ -1657,12 +1677,23 @@ function OffersTab({ user }: { user: any }) {
             {isAccepted && (
               <View>
                 {offer.worker_signed_at ? (
-                  <View style={s.acceptedBanner}>
-                    <Text style={s.acceptedBannerText}>
-                      {offer.owner_signed_at
-                        ? '🎉 Agreement fully signed! Both parties have signed.'
-                        : '✅ You have signed. Waiting for owner to sign.'}
-                    </Text>
+                  <View>
+                    <View style={s.acceptedBanner}>
+                      <Text style={s.acceptedBannerText}>
+                        {offer.owner_signed_at
+                          ? '🎉 Agreement fully signed! Both parties have signed.'
+                          : '✅ You have signed. Waiting for owner to sign.'}
+                      </Text>
+                    </View>
+                    {/* Resign option — only when both have signed (active employment) */}
+                    {offer.owner_signed_at && (
+                      <TouchableOpacity
+                        style={{marginTop:8, paddingVertical:7, paddingHorizontal:12, borderRadius:8, borderWidth:1, borderColor:'#f44336', alignSelf:'flex-start'}}
+                        onPress={() => setShowResign(offer)}
+                      >
+                        <Text style={{color:'#f44336', fontWeight:'700', fontSize:12}}>📤 Resign / End Employment</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 ) : (
                   <>
@@ -1691,6 +1722,31 @@ function OffersTab({ user }: { user: any }) {
           </View>
         );
       })}
+
+      {/* Resign Confirmation Modal */}
+      <Modal visible={!!showResign} transparent animationType="slide">
+        <View style={{flex:1, justifyContent:'flex-end', backgroundColor:'rgba(0,0,0,0.5)'}}>
+          <View style={{backgroundColor:'#fff', borderTopLeftRadius:20, borderTopRightRadius:20, padding:24}}>
+            <Text style={{fontSize:18, fontWeight:'bold', color:'#f44336', marginBottom:8}}>📤 Resign from Job</Text>
+            <Text style={{fontSize:14, color:'#444', marginBottom:6}}>
+              <Text style={{fontWeight:'700'}}>{showResign?.restaurant_name}</Text>
+            </Text>
+            <Text style={{fontSize:13, color:'#666', marginBottom:24}}>
+              This will end your employment effective today. Future pay cycles will be cancelled. This cannot be undone.
+            </Text>
+            <TouchableOpacity
+              style={[s.btn, {backgroundColor:'#f44336', marginBottom:12}]}
+              onPress={resign}
+              disabled={resigning}
+            >
+              {resigning ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Confirm Resignation</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowResign(null)} style={{alignItems:'center', paddingVertical:10}}>
+              <Text style={{color:'#666', fontSize:14}}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -3287,10 +3343,29 @@ function OwnerPayTab({ user }: { user: any }) {
 }
 
 // ─── Owner: Agreements Tab ────────────────────────────────────────────────────
+const TERMINATION_REASONS = [
+  { value: 'worker_resigned',      label: 'Worker resigned (gave notice)' },
+  { value: 'worker_no_show',       label: 'Worker left without notice' },
+  { value: 'worker_misconduct',    label: 'Worker misconduct / terminated' },
+  { value: 'mutual',               label: 'Mutual agreement' },
+  { value: 'contract_ended',       label: 'Contract period ended' },
+];
+
 function OwnerAgreementsTab({ user }: { user: any }) {
   const [agreements, setAgreements] = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
   const [selected, setSelected]     = useState<any>(null);
+
+  // Termination flow
+  const [showTerminate, setShowTerminate]   = useState<any>(null);
+  const [termReason, setTermReason]         = useState('worker_resigned');
+  const [termDate, setTermDate]             = useState('');
+  const [terminating, setTerminating]       = useState(false);
+
+  // Post-termination rating
+  const [showRateWorker, setShowRateWorker] = useState<any>(null);
+  const [ratingForm, setRatingForm]         = useState({ dim_overall:0, dim_reliability:0, dim_punctuality:0, dim_communication:0, dim_skill_level:0, private_note:'' });
+  const [submittingRating, setSubmittingRating] = useState(false);
 
   function load() {
     setLoading(true);
@@ -3299,6 +3374,51 @@ function OwnerAgreementsTab({ user }: { user: any }) {
       .finally(() => setLoading(false));
   }
   useEffect(() => { load(); }, []);
+
+  async function terminate() {
+    if (!showTerminate) return;
+    setTerminating(true);
+    try {
+      await api.patch(`/agreements/${showTerminate.agreement_id}/terminate`, {
+        reason: termReason,
+        last_working_date: termDate || new Date().toISOString().slice(0,10),
+      });
+      setShowTerminate(null);
+      load();
+      // Prompt to rate the worker right after
+      setShowRateWorker(showTerminate);
+      // Pre-fill low scores if left without notice
+      if (termReason === 'worker_no_show') {
+        setRatingForm(f => ({ ...f, dim_reliability: 1, dim_punctuality: 1 }));
+      } else {
+        setRatingForm({ dim_overall:0, dim_reliability:0, dim_punctuality:0, dim_communication:0, dim_skill_level:0, private_note:'' });
+      }
+    } catch(e: any) {
+      alert(e.response?.data?.error ?? 'Failed to terminate');
+    } finally { setTerminating(false); }
+  }
+
+  async function submitRating() {
+    if (!showRateWorker) return;
+    setSubmittingRating(true);
+    try {
+      await api.post('/ratings', {
+        agreement_id:      showRateWorker.agreement_id,
+        rated_id:          showRateWorker.worker_id,
+        period_month:      new Date().toISOString().slice(0,7),
+        rater_type:        'owner',
+        dim_overall:       ratingForm.dim_overall,
+        dim_reliability:   ratingForm.dim_reliability,
+        dim_punctuality:   ratingForm.dim_punctuality,
+        dim_communication: ratingForm.dim_communication,
+        dim_skill_level:   ratingForm.dim_skill_level,
+        private_note:      ratingForm.private_note || null,
+      });
+      setShowRateWorker(null);
+    } catch(e: any) {
+      alert(e.response?.data?.error ?? 'Failed to submit rating');
+    } finally { setSubmittingRating(false); }
+  }
 
   if (loading) return <View style={s.center}><ActivityIndicator color={DARK}/></View>;
 
@@ -3374,9 +3494,138 @@ function OwnerAgreementsTab({ user }: { user: any }) {
                 Tap to review and sign →
               </Text>
             )}
+
+            {/* End Employment button — only for active (both signed) agreements */}
+            {bothSigned && agr.status === 'active' && (
+              <TouchableOpacity
+                style={{marginTop:12, paddingVertical:8, paddingHorizontal:12, borderRadius:8, borderWidth:1, borderColor:'#f44336', alignSelf:'flex-start'}}
+                onPress={(e) => { e.stopPropagation?.(); setShowTerminate(agr); setTermReason('worker_resigned'); setTermDate(''); }}
+              >
+                <Text style={{color:'#f44336', fontWeight:'700', fontSize:12}}>🔴 End Employment</Text>
+              </TouchableOpacity>
+            )}
+
+            {agr.status === 'terminated' && (
+              <View style={{marginTop:8, backgroundColor:'#FFEBEE', borderRadius:6, padding:8}}>
+                <Text style={{fontSize:12, color:'#f44336', fontWeight:'600'}}>⛔ Employment Terminated</Text>
+                {agr.last_working_date && <Text style={{fontSize:11, color:'#888', marginTop:2}}>Last working day: {agr.last_working_date}</Text>}
+              </View>
+            )}
           </TouchableOpacity>
         );
       })}
+
+      {/* Termination Modal */}
+      <Modal visible={!!showTerminate} transparent animationType="slide">
+        <View style={{flex:1, justifyContent:'flex-end', backgroundColor:'rgba(0,0,0,0.5)'}}>
+          <View style={{backgroundColor:'#fff', borderTopLeftRadius:20, borderTopRightRadius:20, padding:24, maxHeight:'85%'}}>
+            <ScrollView>
+              <Text style={{fontSize:18, fontWeight:'bold', color:'#f44336', marginBottom:4}}>🔴 End Employment</Text>
+              <Text style={{fontSize:13, color:'#666', marginBottom:20}}>
+                Worker: <Text style={{fontWeight:'700', color:'#333'}}>{showTerminate?.worker_name}</Text>
+              </Text>
+
+              <Text style={{fontSize:13, fontWeight:'600', color:'#333', marginBottom:8}}>Reason</Text>
+              {TERMINATION_REASONS.map(r => (
+                <TouchableOpacity
+                  key={r.value}
+                  style={{flexDirection:'row', alignItems:'center', paddingVertical:10, paddingHorizontal:12, marginBottom:6, borderRadius:8, borderWidth:1.5,
+                    borderColor: termReason === r.value ? '#f44336' : '#eee',
+                    backgroundColor: termReason === r.value ? '#FFEBEE' : '#fafafa'}}
+                  onPress={() => setTermReason(r.value)}
+                >
+                  <View style={{width:18, height:18, borderRadius:9, borderWidth:2,
+                    borderColor: termReason === r.value ? '#f44336' : '#ccc',
+                    backgroundColor: termReason === r.value ? '#f44336' : '#fff',
+                    marginRight:10}}/>
+                  <Text style={{fontSize:13, color: termReason === r.value ? '#f44336' : '#444', fontWeight: termReason === r.value ? '600' : '400'}}>
+                    {r.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+
+              <Text style={{fontSize:13, fontWeight:'600', color:'#333', marginTop:16, marginBottom:6}}>Last Working Date</Text>
+              <TextInput
+                style={s.input}
+                placeholder={`Today: ${new Date().toISOString().slice(0,10)}`}
+                value={termDate}
+                onChangeText={setTermDate}
+                placeholderTextColor="#aaa"
+              />
+              <Text style={{fontSize:11, color:'#999', marginBottom:16}}>Leave blank to use today's date. Format: YYYY-MM-DD</Text>
+
+              <TouchableOpacity
+                style={[s.btn, {backgroundColor:'#f44336', marginBottom:12}]}
+                onPress={terminate}
+                disabled={terminating}
+              >
+                {terminating ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Confirm End Employment</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowTerminate(null)} style={{alignItems:'center', paddingVertical:10}}>
+                <Text style={{color:'#666', fontSize:14}}>Cancel</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Post-Termination Worker Rating Modal */}
+      <Modal visible={!!showRateWorker} transparent animationType="slide">
+        <View style={{flex:1, justifyContent:'flex-end', backgroundColor:'rgba(0,0,0,0.5)'}}>
+          <View style={{backgroundColor:'#fff', borderTopLeftRadius:20, borderTopRightRadius:20, padding:24, maxHeight:'85%'}}>
+            <ScrollView>
+              <Text style={{fontSize:18, fontWeight:'bold', color:DARK, marginBottom:4}}>⭐ Rate {showRateWorker?.worker_name?.split(' ')[0]}</Text>
+              <Text style={{fontSize:13, color:'#666', marginBottom:20}}>Your honest rating helps other owners make better hiring decisions.</Text>
+
+              {([
+                { key:'dim_overall',        label:'Overall Performance', emoji:'⭐' },
+                { key:'dim_reliability',    label:'Reliability',         emoji:'🔒' },
+                { key:'dim_punctuality',    label:'Punctuality',         emoji:'⏰' },
+                { key:'dim_communication', label:'Communication',        emoji:'💬' },
+                { key:'dim_skill_level',   label:'Skill Level',          emoji:'🍳' },
+              ] as const).map(dim => (
+                <View key={dim.key} style={{marginBottom:16}}>
+                  <Text style={{fontSize:13, fontWeight:'600', color:'#333', marginBottom:8}}>{dim.emoji} {dim.label}</Text>
+                  <View style={{flexDirection:'row', gap:8}}>
+                    {[1,2,3,4,5].map(n => (
+                      <TouchableOpacity
+                        key={n}
+                        style={{width:44, height:44, borderRadius:22, borderWidth:2, justifyContent:'center', alignItems:'center',
+                          borderColor: ratingForm[dim.key] >= n ? ORANGE : '#eee',
+                          backgroundColor: ratingForm[dim.key] >= n ? '#FFF3E0' : '#fafafa'}}
+                        onPress={() => setRatingForm(f => ({...f, [dim.key]: n}))}
+                      >
+                        <Text style={{fontSize:16}}>{n <= (ratingForm[dim.key] ?? 0) ? '★' : '☆'}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ))}
+
+              <Text style={{fontSize:13, fontWeight:'600', color:'#333', marginBottom:6}}>Private Note (optional)</Text>
+              <TextInput
+                style={[s.input, {height:80, textAlignVertical:'top'}]}
+                placeholder="Internal notes — not visible to worker"
+                value={ratingForm.private_note}
+                onChangeText={t => setRatingForm(f => ({...f, private_note: t}))}
+                multiline
+                placeholderTextColor="#aaa"
+              />
+
+              <TouchableOpacity
+                style={[s.btn, {marginTop:8, marginBottom:12}]}
+                onPress={submitRating}
+                disabled={submittingRating || ratingForm.dim_overall === 0}
+              >
+                {submittingRating ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Submit Rating</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setShowRateWorker(null)} style={{alignItems:'center', paddingVertical:10}}>
+                <Text style={{color:'#666', fontSize:14}}>Skip for now</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
