@@ -50,9 +50,9 @@ const billing = {
 };
 
 const PRICE_IDS: Record<string,string> = {
-  owner_starter: 'price_1TDDqWFE7IzsL1G5YMuZdcuz',
-  owner_growth:  'price_1TDDqyFE7IzsL1G5Z52VYRi5',
-  worker_boost:  'price_1TDDrOFE7IzsL1G5fuxNGOBD',
+  owner_starter: 'price_1TMUp3JtdcosZbkCH4p5nM8C',
+  owner_growth:  'price_1TMUp3JtdcosZbkC5hmVbVpf',
+  worker_boost:  'price_1TMUp4JtdcosZbkCqxmdGnxG',
 };
 
 function isPlanGateError(e: any) {
