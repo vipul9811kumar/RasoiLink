@@ -2257,93 +2257,128 @@ function BrowseWorkersTab({ user }: { user: any }) {
         </View>
 
         {showFilters && (
-          <View style={{padding:12,paddingTop:0,gap:10}}>
-            {/* Row: Role + Cuisine */}
-            <View style={{flexDirection:'row',gap:8}}>
-              <View style={{flex:1}}>
-                <Text style={[s.formLabel,{marginBottom:4}]}>Role</Text>
-                <TextInput style={s.filterInput} placeholder="e.g. line_cook"
-                  value={filters.role_code} onChangeText={v=>setFilters(p=>({...p,role_code:v}))}/>
-              </View>
-              <View style={{flex:1}}>
-                <Text style={[s.formLabel,{marginBottom:4}]}>Cuisine</Text>
-                <TextInput style={s.filterInput} placeholder="e.g. indian"
-                  value={filters.cuisine} onChangeText={v=>setFilters(p=>({...p,cuisine:v}))}/>
-              </View>
-            </View>
-
-            {/* Row: Experience range */}
-            <View>
-              <Text style={[s.formLabel,{marginBottom:4}]}>Experience (years)</Text>
-              <View style={{flexDirection:'row',gap:8}}>
-                <TextInput style={[s.filterInput,{flex:1}]} placeholder="Min" keyboardType="numeric"
-                  value={filters.min_exp} onChangeText={v=>setFilters(p=>({...p,min_exp:v}))}/>
-                <Text style={{alignSelf:'center',color:'#999'}}>–</Text>
-                <TextInput style={[s.filterInput,{flex:1}]} placeholder="Max" keyboardType="numeric"
-                  value={filters.max_exp} onChangeText={v=>setFilters(p=>({...p,max_exp:v}))}/>
-              </View>
-            </View>
-
-            {/* Row: Salary range ($/week) */}
-            <View>
-              <Text style={[s.formLabel,{marginBottom:4}]}>Expected Salary ($/week)</Text>
-              <View style={{flexDirection:'row',gap:8}}>
-                <TextInput style={[s.filterInput,{flex:1}]} placeholder="Min" keyboardType="numeric"
-                  value={filters.min_salary} onChangeText={v=>setFilters(p=>({...p,min_salary:v}))}/>
-                <Text style={{alignSelf:'center',color:'#999'}}>–</Text>
-                <TextInput style={[s.filterInput,{flex:1}]} placeholder="Max" keyboardType="numeric"
-                  value={filters.max_salary} onChangeText={v=>setFilters(p=>({...p,max_salary:v}))}/>
-              </View>
-            </View>
-
-            {/* Needs Accommodation */}
-            <View>
-              <Text style={[s.formLabel,{marginBottom:4}]}>Needs Accommodation</Text>
-              <View style={{flexDirection:'row',gap:8}}>
-                {(['any','true','false'] as const).map(v=>(
+          <ScrollView style={{maxHeight:420}} contentContainerStyle={{padding:12,paddingTop:4,gap:10}}>
+            {/* Role chips */}
+            <Text style={[s.formLabel,{marginBottom:4}]}>Role</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{flexDirection:'row',gap:6,paddingBottom:4}}>
+                {[
+                  {v:'',label:'Any'},
+                  {v:'head_chef',label:'Head Chef'},{v:'sous_chef',label:'Sous Chef'},
+                  {v:'tandoor_chef',label:'Tandoor Chef'},{v:'biryani_chef',label:'Biryani Chef'},
+                  {v:'line_cook',label:'Line Cook'},{v:'pastry_mithai',label:'Pastry/Mithai'},
+                  {v:'kitchen_helper',label:'Kitchen Helper'},{v:'dishwasher',label:'Dishwasher'},
+                  {v:'manager',label:'Manager'},{v:'cashier',label:'Cashier'},
+                  {v:'server',label:'Server'},{v:'host',label:'Host'},
+                  {v:'delivery_driver',label:'Delivery Driver'},
+                ].map(({v,label})=>(
                   <TouchableOpacity key={v}
-                    style={{flex:1,paddingVertical:7,borderRadius:8,borderWidth:1,alignItems:'center',
-                      borderColor: filters.needs_accommodation===v ? DARK : '#ccc',
-                      backgroundColor: filters.needs_accommodation===v ? DARK : '#fff'}}
-                    onPress={()=>setFilters(p=>({...p,needs_accommodation:v}))}>
-                    <Text style={{color: filters.needs_accommodation===v?'#fff':'#555',fontSize:12}}>
-                      {v==='any'?'Any':v==='true'?'Yes':'No'}
-                    </Text>
+                    style={{paddingVertical:6,paddingHorizontal:12,borderRadius:20,borderWidth:1.5,
+                      borderColor: filters.role_code===v ? ORANGE : '#ddd',
+                      backgroundColor: filters.role_code===v ? '#FFF3E0' : '#fafafa'}}
+                    onPress={()=>setFilters(p=>({...p,role_code:v}))}>
+                    <Text style={{fontSize:12,color: filters.role_code===v ? ORANGE : '#555', fontWeight: filters.role_code===v?'700':'400'}}>{label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
+            </ScrollView>
+
+            {/* Cuisine chips */}
+            <Text style={[s.formLabel,{marginBottom:4}]}>Cuisine Specialization</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{flexDirection:'row',gap:6,paddingBottom:4}}>
+                {[
+                  {v:'',label:'Any'},
+                  {v:'north_indian',label:'North Indian'},{v:'south_indian',label:'South Indian'},
+                  {v:'punjabi',label:'Punjabi'},{v:'gujarati',label:'Gujarati'},
+                  {v:'maharashtrian',label:'Maharashtrian'},{v:'bengali',label:'Bengali'},
+                  {v:'kerala',label:'Kerala'},{v:'hyderabadi',label:'Hyderabadi'},
+                  {v:'biryani',label:'Biryani'},{v:'tandoor',label:'Tandoor'},
+                  {v:'mughlai',label:'Mughlai'},{v:'street_food',label:'Street Food'},
+                  {v:'mithai',label:'Mithai'},{v:'indo_chinese',label:'Indo-Chinese'},
+                ].map(({v,label})=>(
+                  <TouchableOpacity key={v}
+                    style={{paddingVertical:6,paddingHorizontal:12,borderRadius:20,borderWidth:1.5,
+                      borderColor: filters.cuisine===v ? ORANGE : '#ddd',
+                      backgroundColor: filters.cuisine===v ? '#FFF3E0' : '#fafafa'}}
+                    onPress={()=>setFilters(p=>({...p,cuisine:v}))}>
+                    <Text style={{fontSize:12,color: filters.cuisine===v ? ORANGE : '#555', fontWeight: filters.cuisine===v?'700':'400'}}>{label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            {/* Experience range */}
+            <Text style={[s.formLabel,{marginBottom:4}]}>Experience (years)</Text>
+            <View style={{flexDirection:'row',gap:8,alignItems:'center'}}>
+              <TextInput style={[s.filterInput,{flex:1}]} placeholder="Min" keyboardType="numeric"
+                value={filters.min_exp} onChangeText={v=>setFilters(p=>({...p,min_exp:v}))}/>
+              <Text style={{color:'#999'}}>–</Text>
+              <TextInput style={[s.filterInput,{flex:1}]} placeholder="Max" keyboardType="numeric"
+                value={filters.max_exp} onChangeText={v=>setFilters(p=>({...p,max_exp:v}))}/>
+            </View>
+
+            {/* Salary range */}
+            <Text style={[s.formLabel,{marginBottom:4}]}>Expected Pay ($/week)</Text>
+            <View style={{flexDirection:'row',gap:8,alignItems:'center'}}>
+              <TextInput style={[s.filterInput,{flex:1}]} placeholder="Min" keyboardType="numeric"
+                value={filters.min_salary} onChangeText={v=>setFilters(p=>({...p,min_salary:v}))}/>
+              <Text style={{color:'#999'}}>–</Text>
+              <TextInput style={[s.filterInput,{flex:1}]} placeholder="Max" keyboardType="numeric"
+                value={filters.max_salary} onChangeText={v=>setFilters(p=>({...p,max_salary:v}))}/>
+            </View>
+
+            {/* Accommodation */}
+            <Text style={[s.formLabel,{marginBottom:4}]}>Needs Accommodation</Text>
+            <View style={{flexDirection:'row',gap:8}}>
+              {(['any','true','false'] as const).map(v=>(
+                <TouchableOpacity key={v}
+                  style={{flex:1,paddingVertical:7,borderRadius:8,borderWidth:1,alignItems:'center',
+                    borderColor: filters.needs_accommodation===v ? DARK : '#ddd',
+                    backgroundColor: filters.needs_accommodation===v ? DARK : '#fafafa'}}
+                  onPress={()=>setFilters(p=>({...p,needs_accommodation:v}))}>
+                  <Text style={{color: filters.needs_accommodation===v?'#fff':'#555',fontSize:12}}>
+                    {v==='any'?'Any':v==='true'?'Yes':'No'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
 
             {/* Willing to Relocate */}
-            <View>
-              <Text style={[s.formLabel,{marginBottom:4}]}>Willing to Relocate</Text>
-              <View style={{flexDirection:'row',gap:8}}>
-                {(['any','true'] as const).map(v=>(
-                  <TouchableOpacity key={v}
-                    style={{flex:1,paddingVertical:7,borderRadius:8,borderWidth:1,alignItems:'center',
-                      borderColor: filters.willing_to_relocate===v ? DARK : '#ccc',
-                      backgroundColor: filters.willing_to_relocate===v ? DARK : '#fff'}}
-                    onPress={()=>setFilters(p=>({...p,willing_to_relocate:v}))}>
-                    <Text style={{color: filters.willing_to_relocate===v?'#fff':'#555',fontSize:12}}>
-                      {v==='any'?'Any':'Yes only'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+            <Text style={[s.formLabel,{marginBottom:4}]}>Willing to Relocate</Text>
+            <View style={{flexDirection:'row',gap:8}}>
+              {(['any','true'] as const).map(v=>(
+                <TouchableOpacity key={v}
+                  style={{flex:1,paddingVertical:7,borderRadius:8,borderWidth:1,alignItems:'center',
+                    borderColor: filters.willing_to_relocate===v ? DARK : '#ddd',
+                    backgroundColor: filters.willing_to_relocate===v ? DARK : '#fafafa'}}
+                  onPress={()=>setFilters(p=>({...p,willing_to_relocate:v}))}>
+                  <Text style={{color: filters.willing_to_relocate===v?'#fff':'#555',fontSize:12}}>
+                    {v==='any'?'Any':'Yes only'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
 
-            {/* Reset */}
-            <TouchableOpacity
-              style={{alignSelf:'center',paddingVertical:6,paddingHorizontal:20}}
-              onPress={()=>{
-                const reset = {state:'',role_code:'',cuisine:'',min_exp:'',max_exp:'',
-                  min_salary:'',max_salary:'',needs_accommodation:'any',
-                  willing_to_relocate:'any',work_auth:'',sort_by:'trust_score',sort_dir:'desc'};
-                setFilters(reset); load(reset);
-              }}>
-              <Text style={{color:'#999',fontSize:13}}>Reset all filters</Text>
-            </TouchableOpacity>
-          </View>
+            {/* Apply + Reset buttons */}
+            <View style={{flexDirection:'row',gap:8,marginTop:4}}>
+              <TouchableOpacity
+                style={{flex:1,backgroundColor:'#f5f5f5',paddingVertical:10,borderRadius:10,alignItems:'center',borderWidth:1,borderColor:'#ddd'}}
+                onPress={()=>{
+                  const reset={state:'',role_code:'',cuisine:'',min_exp:'',max_exp:'',
+                    min_salary:'',max_salary:'',needs_accommodation:'any',
+                    willing_to_relocate:'any',work_auth:'',sort_by:'trust_score',sort_dir:'desc'};
+                  setFilters(reset); load(reset);
+                }}>
+                <Text style={{color:'#f44336',fontWeight:'700',fontSize:13}}>✕ Reset All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{flex:2,backgroundColor:ORANGE,paddingVertical:10,borderRadius:10,alignItems:'center'}}
+                onPress={()=>{ load(filters); setShowFilters(false); }}>
+                <Text style={{color:'#fff',fontWeight:'700',fontSize:13}}>Apply Filters</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         )}
 
         {/* ── Sort bar — always visible ── */}
