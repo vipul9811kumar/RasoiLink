@@ -165,11 +165,13 @@ export async function offerRoutes(app: FastifyInstance) {
         l.title as listing_title, l.city, l.state, l.accommodation_provided,
         l.description_en,
         u.name as owner_name, u.trust_score as owner_trust_score,
-        op.restaurant_name
+        op.restaurant_name,
+        a.agreement_id, a.worker_signed_at, a.owner_signed_at
       FROM app.offers o
       JOIN app.listings l ON o.listing_id = l.listing_id
       JOIN app.users u ON o.owner_id = u.user_id
       JOIN app.owner_profiles op ON o.owner_id = op.owner_id
+      LEFT JOIN app.agreements a ON a.offer_id = o.offer_id
       WHERE o.worker_id = $1
       ORDER BY o.created_at DESC
     `, [req.params.id]);

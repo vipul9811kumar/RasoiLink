@@ -1550,8 +1550,9 @@ function OffersTab({ user }: { user: any }) {
       onSign={async () => {
         const res = await api.get(`/offers/${agreement.offer_id}/agreement`);
         setAgreement(res.data.data);
+        load(); // refresh offers list so button state updates
       }}
-      onClose={() => setAgreement(null)}
+      onClose={() => { setAgreement(null); load(); }}
     />
   );
 
@@ -1647,19 +1648,31 @@ function OffersTab({ user }: { user: any }) {
             )}
             {isAccepted && (
               <View>
-                <View style={s.acceptedBanner}>
-                  <Text style={s.acceptedBannerText}>🎉 Offer accepted! The owner is preparing your contract.</Text>
-                </View>
-                <TouchableOpacity
-                  style={[s.btn,{marginTop:8,backgroundColor:DARK,paddingVertical:10}]}
-                  onPress={() => openAgreement(offer.offer_id)}
-                  disabled={responding === offer.offer_id}
-                >
-                  {responding === offer.offer_id
-                    ? <ActivityIndicator color="#fff"/>
-                    : <Text style={s.btnText}>📄 View & Sign Agreement</Text>
-                  }
-                </TouchableOpacity>
+                {offer.worker_signed_at ? (
+                  <View style={s.acceptedBanner}>
+                    <Text style={s.acceptedBannerText}>
+                      {offer.owner_signed_at
+                        ? '🎉 Agreement fully signed! Both parties have signed.'
+                        : '✅ You have signed. Waiting for owner to sign.'}
+                    </Text>
+                  </View>
+                ) : (
+                  <>
+                    <View style={s.acceptedBanner}>
+                      <Text style={s.acceptedBannerText}>🎉 Offer accepted! Review and sign your contract below.</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={[s.btn,{marginTop:8,backgroundColor:DARK,paddingVertical:10}]}
+                      onPress={() => openAgreement(offer.offer_id)}
+                      disabled={responding === offer.offer_id}
+                    >
+                      {responding === offer.offer_id
+                        ? <ActivityIndicator color="#fff"/>
+                        : <Text style={s.btnText}>📄 View & Sign Agreement</Text>
+                      }
+                    </TouchableOpacity>
+                  </>
+                )}
               </View>
             )}
             {isRejected && (
