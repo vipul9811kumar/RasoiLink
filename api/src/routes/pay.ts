@@ -85,7 +85,9 @@ export async function payRoutes(app: FastifyInstance) {
       JOIN app.owner_profiles op ON pc.owner_id = op.owner_id
       JOIN app.users u ON pc.owner_id = u.user_id
       WHERE pc.worker_id = $1
-      ORDER BY pc.period_start DESC
+      ORDER BY
+        CASE WHEN pc.period_start <= CURRENT_DATE THEN 0 ELSE 1 END ASC,
+        pc.period_start DESC
     `, [req.params.id]);
 
     const cycles = result.rows;

@@ -1305,7 +1305,7 @@ function ChatTab({ user, language }: { user: any; language: string }) {
   if (historyLoading) return <View style={s.center}><ActivityIndicator color={ORANGE}/></View>;
 
   return (
-    <View style={{flex:1}}>
+    <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':'height'} keyboardVerticalOffset={Platform.OS==='ios'?90:0}>
       <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:12,paddingVertical:6,borderBottomWidth:1,borderColor:'#eee'}}>
         <View style={s.chatLangBadge}>
           <Text style={s.chatLangText}>{lang?.flag} {lang?.native}</Text>
@@ -1366,7 +1366,7 @@ function ChatTab({ user, language }: { user: any; language: string }) {
           <Text style={{color:'#fff',fontWeight:'bold'}}>Send</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -1458,7 +1458,7 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
         <Text style={[s.formLabel,{marginBottom:10}]}>🆘 Support</Text>
         <TouchableOpacity
           style={{flexDirection:'row',alignItems:'center',backgroundColor:'#25D366',borderRadius:12,padding:16,marginBottom:10}}
-          onPress={() => Linking.openURL('https://wa.me/19853197647?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
+          onPress={() => Linking.openURL('https://wa.me/19843107647?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
         >
           <Text style={{fontSize:20,marginRight:10}}>💬</Text>
           <View>
@@ -1473,7 +1473,7 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
           <Text style={{fontSize:20,marginRight:10}}>✉️</Text>
           <View>
             <Text style={{color:DARK,fontWeight:'700',fontSize:15}}>Email Support</Text>
-            <Text style={{color:'#666',fontSize:12}}>rasoilink@gmail.com</Text>
+            <Text style={{color:'#666',fontSize:12}}>support@rasoilink.com</Text>
           </View>
         </TouchableOpacity>
       </View>
