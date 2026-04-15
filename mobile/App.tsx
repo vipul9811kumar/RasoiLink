@@ -2107,7 +2107,7 @@ function BrowseWorkersTab({ user }: { user: any }) {
     return qs ? `?${qs}` : '';
   }
 
-  function load(f = filters) {
+  function load(f = filters, listingId = selectedListing, listingList = listings) {
     setLoading(true);
     Promise.all([
       api.get(`/workers/search${buildQuery(f)}`),
@@ -2117,8 +2117,28 @@ function BrowseWorkersTab({ user }: { user: any }) {
       setPlanMeta(w.data.meta ?? null);
       const active = (l.data.data ?? []).filter((x:any) => x.status === 'active');
       setListings(active);
-      if (active.length > 0 && !selectedListing) setSelectedListing(active[0].listing_id);
+      // On first load, auto-select first listing and apply its role_code filter
+      if (active.length > 0 && !listingId) {
+        const first = active[0];
+        setSelectedListing(first.listing_id);
+        if (first.role_code) {
+          const updated = { ...f, role_code: first.role_code };
+          setFilters(updated);
+          api.get(`/workers/search${buildQuery(updated)}`).then(r => setWorkers(r.data.data ?? []));
+        }
+      }
     }).finally(() => setLoading(false));
+  }
+
+  function selectListing(listing: any) {
+    setSelectedListing(listing.listing_id);
+    // Auto-filter workers by this listing's role_code
+    const updated = { ...filters, role_code: listing.role_code ?? '' };
+    setFilters(updated);
+    setLoading(true);
+    api.get(`/workers/search${buildQuery(updated)}`)
+      .then(r => { setWorkers(r.data.data ?? []); setPlanMeta(r.data.meta ?? null); })
+      .finally(() => setLoading(false));
   }
 
   useEffect(() => { load(); }, []);
@@ -2176,7 +2196,7 @@ function BrowseWorkersTab({ user }: { user: any }) {
             <TouchableOpacity
               key={l.listing_id}
               style={[s.listingChip, selectedListing===l.listing_id && s.listingChipActive]}
-              onPress={() => setSelectedListing(l.listing_id)}
+              onPress={() => selectListing(l)}
             >
               <Text style={[s.listingChipText, selectedListing===l.listing_id && s.listingChipTextActive]}>
                 {l.title}
@@ -2185,6 +2205,15 @@ function BrowseWorkersTab({ user }: { user: any }) {
           ))}
           {listings.length === 0 && <Text style={{color:'#f44336', fontSize:13}}>No active listings — post a job first!</Text>}
         </ScrollView>
+        {filters.role_code ? (
+          <View style={{flexDirection:'row', alignItems:'center', marginTop:6}}>
+            <Text style={{fontSize:12, color:'#888'}}>Showing workers matching: </Text>
+            <Text style={{fontSize:12, color:ORANGE, fontWeight:'700'}}>{filters.role_code.replace(/_/g,' ')}</Text>
+            <TouchableOpacity onPress={() => { const u={...filters,role_code:''}; setFilters(u); load(u,selectedListing); }} style={{marginLeft:8}}>
+              <Text style={{fontSize:12, color:'#aaa'}}>✕ clear</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
 
       {/* Plan gate banner */}
