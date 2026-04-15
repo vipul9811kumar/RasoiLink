@@ -2074,6 +2074,7 @@ function BrowseWorkersTab({ user }: { user: any }) {
   const [planMeta, setPlanMeta] = useState<any>(null);
   const [showHireFee, setShowHireFee] = useState(false);
   const [hireFeeListingId, setHireFeeListingId] = useState('');
+  const [hireFeeListingTitle, setHireFeeListingTitle] = useState('');
   const [hireFeeLoading, setHireFeeLoading] = useState(false);
 
   // Filters & sort
@@ -2130,7 +2131,9 @@ function BrowseWorkersTab({ user }: { user: any }) {
       setSent(s => new Set([...s, worker_id]));
     } catch(e: any) {
       if (e?.response?.status === 402 && e?.response?.data?.upgrade_required) {
-        setHireFeeListingId(e?.response?.data?.listing_id ?? selectedListing);
+        const lid = e?.response?.data?.listing_id ?? selectedListing;
+        setHireFeeListingId(lid);
+        setHireFeeListingTitle(listings.find((l:any) => l.listing_id === lid)?.title ?? 'your listing');
         setShowHireFee(true);
       } else {
         alert(e.response?.data?.error ?? 'Failed to send offer');
@@ -2447,9 +2450,12 @@ function BrowseWorkersTab({ user }: { user: any }) {
             <Text style={{fontSize:18,color:'#999'}}>✕</Text>
           </TouchableOpacity>
           <Text style={{fontSize:32,textAlign:'center',marginBottom:12}}>🤝</Text>
-          <Text style={{fontSize:22,fontWeight:'bold',color:DARK,textAlign:'center',marginBottom:8}}>One-time Hire Fee</Text>
+          <Text style={{fontSize:22,fontWeight:'bold',color:DARK,textAlign:'center',marginBottom:6}}>One-time Hire Fee</Text>
+          <View style={{backgroundColor:'#FFF3E0',borderRadius:10,paddingVertical:8,paddingHorizontal:14,marginBottom:12,alignSelf:'center'}}>
+            <Text style={{fontSize:13,color:ORANGE,fontWeight:'700',textAlign:'center'}}>📋 {hireFeeListingTitle}</Text>
+          </View>
           <Text style={{fontSize:14,color:'#666',textAlign:'center',lineHeight:20,marginBottom:24}}>
-            Pay a one-time $149 fee to unlock sending offers for this listing. Covers unlimited offers for this listing.
+            Pay a one-time $149 fee to unlock sending offers for this listing. Send to any worker — no extra charge.
           </Text>
           <View style={{backgroundColor:'#F8F9FA',borderRadius:12,padding:16,marginBottom:20}}>
             {['Unlimited offers for this listing','Direct contact with matched workers','Only pay when ready to hire'].map(f => (
