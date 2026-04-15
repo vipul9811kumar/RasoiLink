@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  ActivityIndicator, Modal, ScrollView, TextInput
+  ActivityIndicator, Modal, ScrollView, TextInput, KeyboardAvoidingView
 } from 'react-native';
 import { Platform, Linking } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -260,15 +260,17 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
   }
 
   return (
-    <ScrollView contentContainerStyle={s.authContainer}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{flex:1}}>
+    <ScrollView contentContainerStyle={s.authContainer} keyboardShouldPersistTaps="handled">
       <Text style={s.logo}>🍳</Text>
       <Text style={s.appName}>RasoiLink</Text>
       <Text style={s.tagline}>{returning ? 'Welcome back!' : 'Fair Work. Fair Pay. Real Trust.'}</Text>
 
       {!returning && <>
+        <Text style={s.fieldLabel}>Your Name</Text>
         <TextInput
           style={s.input}
-          placeholder="Your full name"
+          placeholder="Full name"
           value={name}
           onChangeText={v => { setName(v); setError(''); }}
           autoCapitalize="words"
@@ -284,6 +286,7 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
         </View>
       </>}
 
+      <Text style={s.fieldLabel}>Phone Number</Text>
       <TextInput
         style={s.input}
         placeholder="+1 (555) 000-0000"
@@ -292,9 +295,6 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
         keyboardType="phone-pad"
         autoCapitalize="none"
       />
-      <Text style={{fontSize:11,color:'#999',marginTop:-8,marginBottom:16,alignSelf:'flex-start'}}>
-        Enter your phone number to receive a login code
-      </Text>
 
       {error ? <Text style={s.error}>{error}</Text> : null}
 
@@ -302,6 +302,7 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
         {loading ? <ActivityIndicator color="#fff"/> : <Text style={s.btnText}>Get Login Code →</Text>}
       </TouchableOpacity>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -1029,9 +1030,15 @@ function OwnerApplicants({ user }: { user: any }) {
                 <Text style={s.btnText}>✗ Reject</Text>
               </TouchableOpacity>
             </View>
+          ) : app.status==='accepted' ? (
+            <View style={{marginTop:8}}>
+              <View style={[s.statusBadge,{alignSelf:'flex-start',backgroundColor:'#FFF3E0',marginBottom:4}]}>
+                <Text style={{color:ORANGE,fontSize:12,fontWeight:'600'}}>⏳ AGREEMENT PENDING WORKER SIGNATURE</Text>
+              </View>
+            </View>
           ):(
-            <View style={[s.statusBadge,{marginTop:8,alignSelf:'flex-start',backgroundColor:app.status==='accepted'?'#E8F5E9':'#FFEBEE'}]}>
-              <Text style={{color:app.status==='accepted'?GREEN:'#f44336',fontSize:12,fontWeight:'600'}}>{app.status.toUpperCase()}</Text>
+            <View style={[s.statusBadge,{marginTop:8,alignSelf:'flex-start',backgroundColor:'#FFEBEE'}]}>
+              <Text style={{color:'#f44336',fontSize:12,fontWeight:'600'}}>{app.status.toUpperCase()}</Text>
             </View>
           )}
         </View>
@@ -1136,9 +1143,14 @@ function JobsTab({ user }: { user: any }) {
   const [scores, setScores]       = useState<Record<string,number|null>>({});
 
   useEffect(()=>{
-    api.get('/listings').then(r=>{
-      const lst = r.data.data ?? [];
+    Promise.all([
+      api.get('/listings'),
+      api.get(`/workers/${user.user_id}/applications`).catch(()=>({ data: { data: [] } })),
+    ]).then(([listRes, appRes]) => {
+      const lst = listRes.data.data ?? [];
+      const appliedIds: string[] = appRes.data.data ?? [];
       setJobs(lst);
+      setApplied(new Set(appliedIds));
       setLoading(false);
       Promise.all(
         lst.map((l: any) =>
@@ -1273,9 +1285,11 @@ function ChatTab({ user, language }: { user: any; language: string }) {
       const res = await api.post('/chat/message', { message: msg, session_id: sessionId, language_code: language });
       setSessionId(res.data.data.session_id);
 
-      // Strip the raw PROFILE_UPDATE block from the displayed message
+      // Strip internal update blocks and raw JSON from the displayed message
       const displayText = res.data.data.message
         .replace(/<PROFILE_UPDATE>[\s\S]*?<\/PROFILE_UPDATE>/g, '')
+        .replace(/```json[\s\S]*?```/g, '')
+        .replace(/\{[\s\S]*?"role_code"[\s\S]*?\}/g, '')
         .trim();
       setMessages(m=>[...m,{role:'assistant',text:displayText}]);
 
@@ -1436,7 +1450,7 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
         <Text style={[s.formLabel,{marginBottom:10}]}>🆘 Support</Text>
         <TouchableOpacity
           style={{flexDirection:'row',alignItems:'center',backgroundColor:'#25D366',borderRadius:12,padding:16,marginBottom:10}}
-          onPress={() => Linking.openURL('https://wa.me/19843197647?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
+          onPress={() => Linking.openURL('https://wa.me/19853197647?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
         >
           <Text style={{fontSize:20,marginRight:10}}>💬</Text>
           <View>
@@ -3296,6 +3310,7 @@ const s = StyleSheet.create({
   logo:               {fontSize:60,textAlign:'center'},
   appName:            {fontSize:32,fontWeight:'bold',textAlign:'center',color:ORANGE,marginBottom:4},
   tagline:            {fontSize:13,textAlign:'center',color:'#888',marginBottom:24},
+  fieldLabel:         {fontSize:13,fontWeight:'600',color:'#555',alignSelf:'flex-start',marginBottom:4,marginTop:4},
   modeToggle:         {flexDirection:'row',backgroundColor:'#eee',borderRadius:10,padding:4,marginBottom:20},
   modeBtn:            {flex:1,padding:10,borderRadius:8,alignItems:'center'},
   modeBtnActive:      {backgroundColor:'#fff'},
