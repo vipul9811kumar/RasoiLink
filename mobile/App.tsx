@@ -1724,8 +1724,9 @@ function OffersTab({ user }: { user: any }) {
       })}
 
       {/* Resign Confirmation Modal */}
-      <Modal visible={!!showResign} transparent animationType="slide">
-        <View style={{flex:1, justifyContent:'flex-end', backgroundColor:'rgba(0,0,0,0.5)'}}>
+      <Modal visible={!!showResign} transparent animationType="slide" onRequestClose={() => setShowResign(null)}>
+        <TouchableOpacity style={{flex:1, justifyContent:'flex-end', backgroundColor:'rgba(0,0,0,0.5)'}} activeOpacity={1} onPress={() => setShowResign(null)}>
+        <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation?.()}>
           <View style={{backgroundColor:'#fff', borderTopLeftRadius:20, borderTopRightRadius:20, padding:24}}>
             <Text style={{fontSize:18, fontWeight:'bold', color:'#f44336', marginBottom:8}}>📤 Resign from Job</Text>
             <Text style={{fontSize:14, color:'#444', marginBottom:6}}>
@@ -1745,7 +1746,8 @@ function OffersTab({ user }: { user: any }) {
               <Text style={{color:'#666', fontSize:14}}>Cancel</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </ScrollView>
   );
@@ -3436,6 +3438,7 @@ function OwnerAgreementsTab({ user }: { user: any }) {
   );
 
   return (
+    <View style={{flex:1}}>
     <ScrollView style={{flex:1}}>
       <Text style={s.sectionTitle}>Agreements ({agreements.length})</Text>
       {agreements.length === 0 && (
@@ -3514,10 +3517,12 @@ function OwnerAgreementsTab({ user }: { user: any }) {
           </TouchableOpacity>
         );
       })}
+    </ScrollView>
 
       {/* Termination Modal */}
-      <Modal visible={!!showTerminate} transparent animationType="slide">
-        <View style={{flex:1, justifyContent:'flex-end', backgroundColor:'rgba(0,0,0,0.5)'}}>
+      <Modal visible={!!showTerminate} transparent animationType="slide" onRequestClose={() => setShowTerminate(null)}>
+        <TouchableOpacity style={{flex:1, justifyContent:'flex-end', backgroundColor:'rgba(0,0,0,0.5)'}} activeOpacity={1} onPress={() => setShowTerminate(null)}>
+        <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation?.()}>
           <View style={{backgroundColor:'#fff', borderTopLeftRadius:20, borderTopRightRadius:20, padding:24, maxHeight:'85%'}}>
             <ScrollView>
               <Text style={{fontSize:18, fontWeight:'bold', color:'#f44336', marginBottom:4}}>🔴 End Employment</Text>
@@ -3566,12 +3571,14 @@ function OwnerAgreementsTab({ user }: { user: any }) {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </View>
+        </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
 
       {/* Post-Termination Worker Rating Modal */}
-      <Modal visible={!!showRateWorker} transparent animationType="slide">
-        <View style={{flex:1, justifyContent:'flex-end', backgroundColor:'rgba(0,0,0,0.5)'}}>
+      <Modal visible={!!showRateWorker} transparent animationType="slide" onRequestClose={() => setShowRateWorker(null)}>
+        <TouchableOpacity style={{flex:1, justifyContent:'flex-end', backgroundColor:'rgba(0,0,0,0.5)'}} activeOpacity={1} onPress={() => setShowRateWorker(null)}>
+        <TouchableOpacity activeOpacity={1} onPress={e => e.stopPropagation?.()}>
           <View style={{backgroundColor:'#fff', borderTopLeftRadius:20, borderTopRightRadius:20, padding:24, maxHeight:'85%'}}>
             <ScrollView>
               <Text style={{fontSize:18, fontWeight:'bold', color:DARK, marginBottom:4}}>⭐ Rate {showRateWorker?.worker_name?.split(' ')[0]}</Text>
@@ -3624,9 +3631,10 @@ function OwnerAgreementsTab({ user }: { user: any }) {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </View>
+        </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
-    </ScrollView>
+    </View>
   );
 }
 

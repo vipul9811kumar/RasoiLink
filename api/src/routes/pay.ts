@@ -75,7 +75,8 @@ export async function payRoutes(app: FastifyInstance) {
   }, async (req, reply) => {
     const result = await query(`
       SELECT
-        pc.cycle_id, pc.status, pc.period_start, pc.period_end, pc.due_date,
+        pc.cycle_id, pc.agreement_id, pc.owner_id, pc.status,
+        pc.period_start, pc.period_end, pc.due_date,
         pc.expected_amount_cents, pc.owner_amount_paid_cents,
         pc.payment_method, pc.owner_confirmed_at, pc.worker_confirmed_at,
         op.restaurant_name, u.name as owner_name
