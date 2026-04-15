@@ -10,8 +10,16 @@ export async function offerRoutes(app: FastifyInstance) {
   app.get<{ Params: { id: string } }>('/owners/:id/applications', {
     preHandler: [app.authenticate],
   }, async (req, reply) => {
+    const owner_id = req.params.id;
+    // Check if owner's plan allows seeing contact info
+    const planRes = await query(
+      `SELECT plan FROM app.owner_profiles WHERE owner_id = $1`, [owner_id]
+    );
+    const plan = planRes.rows[0]?.plan ?? 'free';
+    const contactsVisible = plan === 'starter' || plan === 'growth';
+
     const result = await query(`
-      SELECT 
+      SELECT
         o.offer_id, o.listing_id, o.worker_id, o.status, o.created_at,
         l.title as listing_title,
         u.name as worker_name, u.phone as worker_phone,
@@ -24,8 +32,14 @@ export async function offerRoutes(app: FastifyInstance) {
       JOIN app.worker_profiles wp ON o.worker_id = wp.worker_id
       WHERE l.owner_id = $1
       ORDER BY o.created_at DESC
-    `, [req.params.id]);
-    return reply.send({ success: true, data: result.rows, error: null });
+    `, [owner_id]);
+
+    // Mask phone if plan doesn't include contacts
+    const rows = result.rows.map((r: any) => ({
+      ...r,
+      worker_phone: contactsVisible ? r.worker_phone : '🔒 Upgrade to view',
+    }));
+    return reply.send({ success: true, data: rows, error: null });
   });
 
   // POST /listings/:id/apply — worker applies to a listing
@@ -70,6 +84,17 @@ export async function offerRoutes(app: FastifyInstance) {
         .catch(e => console.error('WhatsApp owner alert failed:', e));
     }
     return reply.status(201).send({ success: true, data: result.rows[0], error: null });
+  });
+
+  // GET /workers/:id/applications — listing_ids the worker has already applied to
+  app.get<{ Params: { id: string } }>('/workers/:id/applications', {
+    preHandler: [app.authenticate],
+  }, async (req, reply) => {
+    const result = await query(
+      `SELECT listing_id FROM app.offers WHERE worker_id = $1`,
+      [req.params.id]
+    );
+    return reply.send({ success: true, data: result.rows.map((r: any) => r.listing_id), error: null });
   });
 
   // POST /listings/:id/offer — owner proactively sends offer to a worker
