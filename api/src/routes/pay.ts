@@ -381,25 +381,35 @@ export async function payRoutes(app: FastifyInstance) {
 
     const isSubscription = tx_type === 'subscription';
 
-    const session = await stripe.checkout.sessions.create({
-      customer:             stripe_customer_id,
-      mode:                 isSubscription ? 'subscription' : 'payment',
-      payment_method_types: ['card'],
-      line_items: [{ price: price_id, quantity: 1 }],
-      success_url: `${success_url}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url,
-      metadata: {
-        user_id:   user.user_id,
-        tx_type,
-        price_id,
-        ...metadata,
-      },
-      ...(isSubscription && {
-        subscription_data: {
-          metadata: { user_id: user.user_id },
+    let session;
+    try {
+      session = await stripe.checkout.sessions.create({
+        customer:                 stripe_customer_id,
+        mode:                     isSubscription ? 'subscription' : 'payment',
+        automatic_payment_methods: { enabled: true },
+        line_items: [{ price: price_id, quantity: 1 }],
+        success_url: `${success_url}?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url,
+        metadata: {
+          user_id:  user.user_id,
+          tx_type,
+          price_id,
+          ...metadata,
         },
-      }),
-    });
+        ...(isSubscription && {
+          subscription_data: {
+            metadata: { user_id: user.user_id },
+          },
+        }),
+      });
+    } catch (stripeErr: any) {
+      req.log.error({ stripeErr: stripeErr?.message, code: stripeErr?.code }, 'Stripe checkout session error');
+      return reply.status(502).send({
+        success: false,
+        error: stripeErr?.message ?? 'Payment provider error. Please try again.',
+        data: null,
+      });
+    }
 
     return reply.send({ success: true, data: { url: session.url, session_id: session.id }, error: null });
   });
@@ -427,10 +437,20 @@ export async function payRoutes(app: FastifyInstance) {
       return reply.status(400).send({ success: false, error: 'No billing account found. Subscribe to a plan first.', data: null });
     }
 
-    const portalSession = await stripe.billingPortal.sessions.create({
-      customer:   stripe_customer_id,
-      return_url,
-    });
+    let portalSession;
+    try {
+      portalSession = await stripe.billingPortal.sessions.create({
+        customer:   stripe_customer_id,
+        return_url,
+      });
+    } catch (stripeErr: any) {
+      req.log.error({ stripeErr: stripeErr?.message }, 'Stripe portal session error');
+      return reply.status(502).send({
+        success: false,
+        error: stripeErr?.message ?? 'Payment provider error. Please try again.',
+        data: null,
+      });
+    }
 
     return reply.send({ success: true, data: { url: portalSession.url }, error: null });
   });
