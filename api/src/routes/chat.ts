@@ -105,12 +105,22 @@ export async function chatRoutes(app: FastifyInstance) {
     );
 
     // Call Claude
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system: SYSTEM_PROMPT,
-      messages: history,
-    });
+    let response;
+    try {
+      response = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages: history,
+      });
+    } catch (aiErr: any) {
+      req.log.error({ err: aiErr?.message, status: aiErr?.status }, 'Claude API error');
+      return reply.status(502).send({
+        success: false,
+        error: 'AI service is temporarily unavailable. Please try again in a moment.',
+        data: null,
+      });
+    }
 
     const assistantText = response.content
       .filter(b => b.type === 'text')

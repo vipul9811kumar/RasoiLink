@@ -1315,8 +1315,9 @@ function ChatTab({ user, language }: { user: any; language: string }) {
       if (res.data.data.profile_updated) {
         await showJobSuggestions();
       }
-    } catch {
-      setMessages(m=>[...m,{role:'assistant',text:'Sorry, something went wrong. Please try again.'}]);
+    } catch(e: any) {
+      const errMsg = e?.response?.data?.error ?? 'Sorry, something went wrong. Please try again.';
+      setMessages(m=>[...m,{role:'assistant',text:errMsg}]);
     } finally { setLoading(false); }
   }
 
@@ -1476,7 +1477,7 @@ function ProfileTab({ user, language, onLogout, onLanguageChange }: { user: any;
         <Text style={[s.formLabel,{marginBottom:10}]}>🆘 Support</Text>
         <TouchableOpacity
           style={{flexDirection:'row',alignItems:'center',backgroundColor:'#25D366',borderRadius:12,padding:16,marginBottom:10}}
-          onPress={() => Linking.openURL('https://wa.me/19843107647?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
+          onPress={() => Linking.openURL('https://wa.me/19843197647?text=Hi%20RasoiLink%20support%2C%20I%20need%20help%20with...')}
         >
           <Text style={{fontSize:20,marginRight:10}}>💬</Text>
           <View>

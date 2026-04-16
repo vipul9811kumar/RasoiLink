@@ -310,8 +310,8 @@ export async function payRoutes(app: FastifyInstance) {
       RETURNING *
     `, [
       agreement_id, rater_id, rated_id, period_month, rater_type,
-      dim_overall, dim_communication, dim_reliability,
-      dim_skill_level, dim_punctuality, dim_pay_reliability ?? null,
+      dim_overall, dim_communication, dim_reliability ?? null,
+      dim_skill_level ?? null, dim_punctuality ?? null, dim_pay_reliability ?? null,
       private_note ?? null,
     ]);
 

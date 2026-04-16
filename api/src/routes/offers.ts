@@ -306,6 +306,65 @@ export async function offerRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: result.rows[0], error: null });
   });
 
+  // PATCH /agreements/:id/terminate
+  app.patch<{ Params: { id: string } }>('/agreements/:id/terminate', {
+    preHandler: [app.authenticate],
+  }, async (req: any, reply) => {
+    const { reason, last_working_date, notes } = req.body as any;
+    const user_id   = req.user.user_id;
+    const user_type = req.user.user_type;
+
+    const agrRes = await query(
+      `SELECT * FROM app.agreements WHERE agreement_id = $1 AND status = 'active'`,
+      [req.params.id]
+    );
+    if (!agrRes.rows.length) {
+      return reply.status(404).send({ success: false, error: 'Active agreement not found', data: null });
+    }
+    const agr = agrRes.rows[0];
+
+    // Only owner or worker on the agreement can terminate
+    if (agr.owner_id !== user_id && agr.worker_id !== user_id) {
+      return reply.status(403).send({ success: false, error: 'Not authorised', data: null });
+    }
+
+    const lwd = last_working_date ?? new Date().toISOString().slice(0, 10);
+
+    await query(`
+      UPDATE app.agreements
+      SET status = 'terminated',
+          terminated_at = now(),
+          termination_initiated_by = $1,
+          termination_reason = $2,
+          last_working_date = $3,
+          termination_notes = $4
+      WHERE agreement_id = $5
+    `, [user_type, reason ?? 'mutual', lwd, notes ?? null, req.params.id]);
+
+    // Cancel all future scheduled pay cycles
+    await query(`
+      UPDATE app.pay_cycles
+      SET status = 'resolved'
+      WHERE agreement_id = $1 AND status = 'scheduled' AND period_start > $2
+    `, [req.params.id, lwd]);
+
+    // Notify the other party
+    const otherUserId = user_type === 'owner' ? agr.worker_id : agr.owner_id;
+    const initiatorRes = await query('SELECT name FROM app.users WHERE user_id = $1', [user_id]);
+    const initiatorName = initiatorRes.rows[0]?.name ?? 'The other party';
+    await createNotification({
+      user_id: otherUserId,
+      event_type: 'agreement_terminated',
+      title: '📋 Employment Ended',
+      body: `${initiatorName} has ended the employment agreement. Reason: ${reason ?? 'mutual'}.`,
+      related_entity_id: req.params.id,
+      related_entity_type: 'agreement',
+      dedup_key: `terminated_${req.params.id}`,
+    });
+
+    return reply.send({ success: true, data: { terminated: true, last_working_date: lwd }, error: null });
+  });
+
   // GET /workers/:id/agreements
   app.get<{ Params: { id: string } }>('/workers/:id/agreements', {
     preHandler: [app.authenticate],
