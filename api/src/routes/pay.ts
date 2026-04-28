@@ -422,10 +422,9 @@ export async function payRoutes(app: FastifyInstance) {
     let session;
     try {
       session = await stripe.checkout.sessions.create({
-        customer:                 stripe_customer_id,
-        mode:                     isSubscription ? 'subscription' : 'payment',
-        automatic_payment_methods: { enabled: true },
-        line_items: [{ price: price_id, quantity: 1 }],
+        customer:    stripe_customer_id,
+        mode:        isSubscription ? 'subscription' : 'payment',
+        line_items:  [{ price: price_id, quantity: 1 }],
         success_url: `${success_url}?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url,
         metadata: {
