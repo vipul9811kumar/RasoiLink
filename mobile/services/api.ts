@@ -1,7 +1,7 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const API_URL = 'https://turbo-memory-x5jr77jv5j4j3rw4-3000.app.github.dev';
+const API_URL = 'https://rasoilink-production.up.railway.app';
 
 const api = axios.create({ baseURL: API_URL });
 
