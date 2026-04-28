@@ -79,7 +79,13 @@ export async function payRoutes(app: FastifyInstance) {
         pc.period_start, pc.period_end, pc.due_date,
         pc.expected_amount_cents, pc.owner_amount_paid_cents,
         pc.payment_method, pc.owner_confirmed_at, pc.worker_confirmed_at,
-        op.restaurant_name, u.name as owner_name
+        op.restaurant_name, u.name as owner_name,
+        EXISTS (
+          SELECT 1 FROM app.ratings r
+          WHERE r.agreement_id = pc.agreement_id
+            AND r.rater_id = $1
+            AND r.period_month = to_char(pc.period_start, 'YYYY-MM')
+        ) AS has_rated
       FROM app.pay_cycles pc
       JOIN app.agreements a ON pc.agreement_id = a.agreement_id
       JOIN app.owner_profiles op ON pc.owner_id = op.owner_id
@@ -300,22 +306,31 @@ export async function payRoutes(app: FastifyInstance) {
     } = req.body as any;
     const rater_id = (req as any).user.user_id;
 
-    const result = await query(`
-      INSERT INTO app.ratings (
+    try {
+      const result = await query(`
+        INSERT INTO app.ratings (
+          agreement_id, rater_id, rated_id, period_month, rater_type,
+          dim_overall, dim_communication, dim_reliability,
+          dim_skill_level, dim_punctuality, dim_pay_reliability,
+          private_note, window_closes_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now() + interval '30 days')
+        RETURNING *
+      `, [
         agreement_id, rater_id, rated_id, period_month, rater_type,
-        dim_overall, dim_communication, dim_reliability,
-        dim_skill_level, dim_punctuality, dim_pay_reliability,
-        private_note, window_closes_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12, now() + interval '30 days')
-      RETURNING *
-    `, [
-      agreement_id, rater_id, rated_id, period_month, rater_type,
-      dim_overall, dim_communication, dim_reliability ?? null,
-      dim_skill_level ?? null, dim_punctuality ?? null, dim_pay_reliability ?? null,
-      private_note ?? null,
-    ]);
-
-    return reply.status(201).send({ success: true, data: result.rows[0], error: null });
+        dim_overall, dim_communication, dim_reliability ?? null,
+        dim_skill_level ?? null, dim_punctuality ?? null, dim_pay_reliability ?? null,
+        private_note ?? null,
+      ]);
+      return reply.status(201).send({ success: true, data: result.rows[0], error: null });
+    } catch (err: any) {
+      if (err.code === '23505') {
+        return reply.status(409).send({ success: false, data: null, error: 'You have already rated this restaurant for this period.' });
+      }
+      if (err.code === '23514') {
+        return reply.status(400).send({ success: false, data: null, error: 'Please rate all categories before submitting.' });
+      }
+      throw err;
+    }
   });
 
   // ── NEW: STRIPE BILLING ROUTES ────────────────────────────────────────────

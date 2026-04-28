@@ -1316,7 +1316,7 @@ function ChatTab({ user, language }: { user: any; language: string }) {
         await showJobSuggestions();
       }
     } catch(e: any) {
-      const errMsg = e?.response?.data?.error ?? 'Sorry, something went wrong. Please try again.';
+      const errMsg = e?.response?.data?.error ?? e?.response?.data?.message ?? e?.message ?? 'Sorry, something went wrong. Please try again.';
       setMessages(m=>[...m,{role:'assistant',text:errMsg}]);
     } finally { setLoading(false); }
   }
@@ -1324,7 +1324,7 @@ function ChatTab({ user, language }: { user: any; language: string }) {
   if (historyLoading) return <View style={s.center}><ActivityIndicator color={ORANGE}/></View>;
 
   return (
-    <KeyboardAvoidingView style={{flex:1}} behavior={Platform.OS==='ios'?'padding':'height'} keyboardVerticalOffset={Platform.OS==='ios'?90:0}>
+    <KeyboardAvoidingView style={{flex:1}} behavior="padding" keyboardVerticalOffset={Platform.OS==='ios'?90:60}>
       <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',paddingHorizontal:12,paddingVertical:6,borderBottomWidth:1,borderColor:'#eee'}}>
         <View style={s.chatLangBadge}>
           <Text style={s.chatLangText}>{lang?.flag} {lang?.native}</Text>
@@ -1933,12 +1933,14 @@ function PayTrustTab({ user }: { user: any }) {
                 </TouchableOpacity>
               )}
               {cycle.status === 'worker_confirmed' && (
-                <TouchableOpacity
-                  style={[s.btn, {marginTop:10, paddingVertical:8, backgroundColor:'#FF6B00'}]}
-                  onPress={() => setShowRateOwner(cycle)}
-                >
-                  <Text style={s.btnText}>⭐ Rate this Restaurant</Text>
-                </TouchableOpacity>
+                cycle.has_rated
+                  ? <Text style={{marginTop:8,fontSize:12,color:GREEN,fontWeight:'600',textAlign:'center'}}>✅ You rated this restaurant</Text>
+                  : <TouchableOpacity
+                      style={[s.btn, {marginTop:10, paddingVertical:8, backgroundColor:'#FF6B00'}]}
+                      onPress={() => setShowRateOwner(cycle)}
+                    >
+                      <Text style={s.btnText}>⭐ Rate this Restaurant</Text>
+                    </TouchableOpacity>
               )}
               {cycle.status === 'late' && (
                 <Text style={{marginTop:8, fontSize:12, color:'#f44336', fontWeight:'600'}}>
@@ -2044,7 +2046,7 @@ function PayTrustTab({ user }: { user: any }) {
             <TouchableOpacity
               style={[s.btn,{marginTop:8,backgroundColor:ORANGE}]}
               onPress={submitOwnerRating}
-              disabled={submittingOwnerRating || ownerRatingForm.dim_overall === 0}
+              disabled={submittingOwnerRating || ownerRatingForm.dim_overall === 0 || ownerRatingForm.dim_communication === 0 || ownerRatingForm.dim_pay_reliability === 0}
             >
               {submittingOwnerRating
                 ? <ActivityIndicator color="#fff"/>

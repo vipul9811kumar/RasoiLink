@@ -130,6 +130,13 @@ app.decorate('authenticate', async (req: any, reply: any) => {
   }
 });
 
+// Normalize all unhandled errors to {success, error, data} so the mobile can always read them
+app.setErrorHandler((err, _req, reply) => {
+  app.log.error(err);
+  const status = err.statusCode ?? 500;
+  reply.status(status).send({ success: false, error: err.message ?? 'Internal server error', data: null });
+});
+
 // Serve admin dashboard at /admin
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const adminHtml = readFileSync(path.join(__dirname, '../public/admin.html'), 'utf-8');
