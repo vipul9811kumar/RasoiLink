@@ -117,7 +117,7 @@ export async function chatRoutes(app: FastifyInstance) {
       req.log.error({ err: aiErr?.message, status: aiErr?.status }, 'Claude API error');
       return reply.status(502).send({
         success: false,
-        error: 'AI service is temporarily unavailable. Please try again in a moment.',
+        error: `AI error: ${aiErr?.status ?? 'unknown'} — ${aiErr?.message ?? 'no message'}`,
         data: null,
       });
     }
