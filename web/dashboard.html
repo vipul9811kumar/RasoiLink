@@ -366,6 +366,10 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;displ
           <option value="Worker">Workers</option>
           <option value="Owner">Owners</option>
         </select>
+        <button onclick="renderWaitlist()" style="background:var(--accent);border:none;border-radius:var(--r);
+                 color:#fff;font-family:'Inter',sans-serif;font-size:13px;padding:7px 14px;cursor:pointer">Search</button>
+        <button onclick="loadWaitlist()" style="background:var(--card2);border:1px solid var(--border);border-radius:var(--r);
+                 color:var(--muted);font-family:'Inter',sans-serif;font-size:13px;padding:7px 14px;cursor:pointer">↻ Reload</button>
         <span id="wl-count" style="font-size:12px;color:var(--muted)"></span>
       </div>
       <div id="wl-body"><div class="skel" style="height:120px;border-radius:6px"></div></div>
@@ -785,21 +789,29 @@ async function loadWaitlist() {
     '<div class="skel" style="height:120px;border-radius:6px"></div>';
   try {
     let records = [], offset = '';
-    // Airtable pages at 100 records; loop until done
     do {
-      const url = `https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_TABLE)}?pageSize=100`
-        + (offset ? `&offset=${offset}` : '')
-        + `&sort[0][field]=Signed Up At&sort[0][direction]=desc`;
+      const params = new URLSearchParams({ pageSize: '100' });
+      if (offset) params.set('offset', offset);
+      const url = `https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_TABLE)}?${params}`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${AT_KEY}` }, signal: AbortSignal.timeout(15000) });
       const json = await res.json();
+      if (!res.ok) {
+        const msg = json?.error?.message || json?.error?.type || JSON.stringify(json);
+        throw new Error(`Airtable ${res.status}: ${msg}`);
+      }
       records = records.concat(json.records || []);
       offset = json.offset || '';
     } while (offset);
+    // Sort newest first by Airtable record creation time
+    records.sort((a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime());
     _wlAll = records;
     renderWaitlist();
   } catch(e) {
     document.getElementById('wl-body').innerHTML =
-      `<div style="color:var(--muted);font-size:12px;padding:12px 0">Could not load Airtable: ${e.message}</div>`;
+      `<div style="color:var(--danger);font-size:12px;padding:12px 0">
+         Could not load Airtable — ${e.message}<br>
+         <span style="color:var(--muted)">Check the API token in index.html CONFIG.airtable.apiKey</span>
+       </div>`;
   }
 }
 
@@ -852,10 +864,9 @@ function renderWaitlist() {
     </div>`;
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('wl-search')?.addEventListener('input', renderWaitlist);
-  document.getElementById('wl-type')?.addEventListener('change', renderWaitlist);
-});
+// Attach directly — script is at bottom of body so DOM is ready
+document.getElementById('wl-search')?.addEventListener('input', renderWaitlist);
+document.getElementById('wl-type')?.addEventListener('change', renderWaitlist);
 
 // ── User List (/admin/users) ──────────────────────────────────────────────────
 let _ulPage = 1;
@@ -921,10 +932,8 @@ async function loadUserList(page) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('ul-search')?.addEventListener('keydown', e => {
-    if (e.key === 'Enter') loadUserList(1);
-  });
+document.getElementById('ul-search')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') loadUserList(1);
 });
 
 // ── Render: Users ─────────────────────────────────────────────────────────────
