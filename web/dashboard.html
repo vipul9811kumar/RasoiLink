@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RasoiLink — Command Centre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:     #0F1117;
+  --card:   #1A1D27;
+  --card2:  #20233A;
+  --border: #2A2D3E;
+  --accent: #FF6B2B;
+  --a2:     #F5A623;
+  --teal:   #1EC9A0;
+  --blue:   #4A90E2;
+  --purple: #8B5CF6;
+  --text:   #E8EAF0;
+  --muted:  #8B90A7;
+  --ok:     #27AE60;
+  --warn:   #F39C12;
+  --danger: #E74C3C;
+  --r:      10px;
+  --sidebar:220px;
+}
+
+html{font-size:14px;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;display:flex;min-height:100vh}
+
+/* ── Login ─────────────────────────────────────────────── */
+#login{
+  position:fixed;inset:0;z-index:999;
+  display:flex;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 50% 30%,#1e1040 0%,var(--bg) 70%);
+}
+.lc{
+  background:var(--card);border:1px solid var(--border);
+  border-radius:16px;padding:48px 40px;width:100%;max-width:380px;
+  text-align:center;box-shadow:0 24px 64px rgba(0,0,0,.6);
+}
+.lc .logo{font-size:40px;margin-bottom:8px}
+.lc h1{font-size:20px;font-weight:800;margin-bottom:4px}
+.lc p{color:var(--muted);font-size:12px;margin-bottom:28px}
+.lc input{
+  width:100%;background:var(--bg);border:1px solid var(--border);
+  border-radius:var(--r);color:var(--text);font-family:'Inter',sans-serif;
+  font-size:14px;padding:12px 14px;outline:none;transition:border-color .2s;
+  margin-bottom:12px;
+}
+.lc input:focus{border-color:var(--accent)}
+.lc button{
+  width:100%;padding:13px;border:none;border-radius:var(--r);cursor:pointer;
+  background:linear-gradient(135deg,var(--accent),var(--a2));
+  color:#fff;font-family:'Inter',sans-serif;font-size:14px;font-weight:600;
+}
+.lc button:hover{opacity:.88}
+.lc .err{color:var(--danger);font-size:12px;margin-top:8px;min-height:18px}
+
+/* ── Sidebar ───────────────────────────────────────────── */
+#sidebar{
+  width:var(--sidebar);min-height:100vh;
+  background:var(--card);border-right:1px solid var(--border);
+  position:fixed;top:0;left:0;bottom:0;
+  display:flex;flex-direction:column;overflow-y:auto;z-index:10;
+}
+.sb-brand{
+  padding:20px 18px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+.sb-brand .icon{font-size:22px}
+.sb-brand .name{font-size:13px;font-weight:800;letter-spacing:.02em}
+.sb-brand .badge{
+  font-size:9px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;
+  background:linear-gradient(135deg,var(--accent),var(--a2));
+  color:#fff;border-radius:4px;padding:2px 6px;margin-left:auto;
+}
+.sb-nav{padding:12px 0;flex:1}
+.sb-section{
+  font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);padding:12px 18px 4px;
+}
+.sb-link{
+  display:flex;align-items:center;gap:9px;
+  padding:8px 18px;color:var(--muted);text-decoration:none;
+  font-size:13px;font-weight:500;cursor:pointer;border-left:3px solid transparent;
+  transition:color .15s,background .15s,border-color .15s;
+}
+.sb-link:hover{color:var(--text);background:rgba(255,255,255,.04)}
+.sb-link.active{color:var(--accent);border-left-color:var(--accent);background:rgba(255,107,43,.07)}
+.sb-link .si{font-size:15px;width:18px;text-align:center}
+.sb-footer{
+  padding:14px 18px;border-top:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+}
+.sb-footer .refresh-info{font-size:11px;color:var(--muted)}
+#logout-btn{
+  font-size:11px;color:var(--muted);background:none;border:none;cursor:pointer;
+  padding:4px 8px;border-radius:4px;transition:color .15s,background .15s;
+}
+#logout-btn:hover{color:var(--text);background:rgba(255,255,255,.08)}
+
+/* ── Main ──────────────────────────────────────────────── */
+#main{
+  margin-left:var(--sidebar);flex:1;min-height:100vh;
+  padding:0 28px 60px;max-width:1400px;
+}
+
+/* ── Top bar ───────────────────────────────────────────── */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:28px;
+  position:sticky;top:0;background:var(--bg);z-index:5;
+}
+.topbar h1{font-size:18px;font-weight:800;letter-spacing:-.01em}
+.topbar h1 span{color:var(--accent)}
+.tb-right{display:flex;align-items:center;gap:12px}
+.range-sel{
+  background:var(--card);border:1px solid var(--border);color:var(--text);
+  font-family:'Inter',sans-serif;font-size:12px;border-radius:var(--r);
+  padding:6px 10px;outline:none;cursor:pointer;
+}
+.refresh-btn{
+  background:var(--card);border:1px solid var(--border);color:var(--muted);
+  border-radius:var(--r);padding:6px 12px;font-size:12px;cursor:pointer;
+  transition:color .15s,border-color .15s;display:flex;align-items:center;gap:6px;
+}
+.refresh-btn:hover{color:var(--text);border-color:var(--accent)}
+.refresh-btn.spinning .ri{animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.last-ref{font-size:11px;color:var(--muted)}
+
+/* ── Section ───────────────────────────────────────────── */
+.section{margin-bottom:36px;scroll-margin-top:72px}
+.sec-title{
+  font-size:13px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:14px;display:flex;align-items:center;gap:8px;
+}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
+
+/* ── KPI grid ──────────────────────────────────────────── */
+.kpi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px}
+.kpi{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:18px 16px;position:relative;overflow:hidden;
+}
+.kpi::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,var(--c,var(--accent)),transparent);
+}
+.kpi-label{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:6px}
+.kpi-val{font-size:26px;font-weight:800;letter-spacing:-.02em;line-height:1}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.kpi-ok{color:var(--ok)}
+.kpi-warn{color:var(--warn)}
+.kpi-danger{color:var(--danger)}
+
+/* ── Chart cards ───────────────────────────────────────── */
+.chart-grid{display:grid;gap:14px}
+.chart-grid.cols2{grid-template-columns:1fr 1fr}
+.chart-grid.cols3{grid-template-columns:2fr 1fr 1fr}
+.chart-card{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--r);
+  padding:18px 20px;
+}
+.chart-card h3{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.05em;text-transform:uppercase;margin-bottom:14px}
+.chart-wrap{position:relative}
+.chart-wrap.h200{height:200px}
+.chart-wrap.h240{height:240px}
+.chart-wrap.h280{height:280px}
+.chart-wrap.h160{height:160px}
+
+/* ── Funnel ────────────────────────────────────────────── */
+.funnel-wrap{display:flex;flex-direction:column;gap:6px}
+.funnel-row{display:flex;align-items:center;gap:10px}
+.funnel-label{font-size:12px;color:var(--muted);width:160px;flex-shrink:0;text-align:right}
+.funnel-bar-outer{flex:1;background:var(--bg);border-radius:4px;height:22px;overflow:hidden}
+.funnel-bar{height:100%;border-radius:4px;transition:width .6s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:8px}
+.funnel-bar span{font-size:11px;font-weight:700;color:#fff}
+.funnel-pct{width:46px;font-size:11px;color:var(--muted);text-align:right;flex-shrink:0}
+
+/* ── Table ─────────────────────────────────────────────── */
+.data-table{width:100%;border-collapse:collapse}
+.data-table th{
+  font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);
+}
+.data-table td{
+  padding:9px 12px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.04);
+  vertical-align:middle;
+}
+.data-table tr:last-child td{border-bottom:none}
+.data-table tr:hover td{background:rgba(255,255,255,.025)}
+.badge{
+  display:inline-block;font-size:10px;font-weight:600;letter-spacing:.04em;
+  border-radius:4px;padding:2px 7px;text-transform:capitalize;
+}
+.b-active{background:rgba(30,201,160,.15);color:var(--teal)}
+.b-filled{background:rgba(74,144,226,.15);color:var(--blue)}
+.b-draft{background:rgba(139,144,167,.12);color:var(--muted)}
+.b-expired{background:rgba(231,76,60,.12);color:var(--danger)}
+.b-ok{background:rgba(39,174,96,.15);color:var(--ok)}
+.b-warn{background:rgba(243,156,18,.15);color:var(--warn)}
+.b-danger{background:rgba(231,76,60,.15);color:var(--danger)}
+.b-purple{background:rgba(139,92,246,.15);color:var(--purple)}
+
+/* ── Stat row ──────────────────────────────────────────── */
+.stat-row{display:flex;gap:14px;flex-wrap:wrap}
+.stat-pill{
+  background:var(--card2);border-radius:var(--r);padding:14px 18px;flex:1;min-width:120px;
+}
+.stat-pill .sp-val{font-size:22px;font-weight:800}
+.stat-pill .sp-lab{font-size:11px;color:var(--muted);margin-top:3px}
+
+/* ── Pay health bars ───────────────────────────────────── */
+.pay-stack{display:flex;height:28px;border-radius:6px;overflow:hidden;gap:2px}
+.pay-seg{display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;transition:width .6s ease;min-width:0}
+
+/* ── Geo list ──────────────────────────────────────────── */
+.geo-list{display:flex;flex-direction:column;gap:6px}
+.geo-row{display:flex;align-items:center;gap:8px}
+.geo-state{font-size:12px;font-weight:600;width:32px;flex-shrink:0;color:var(--text)}
+.geo-bar-outer{flex:1;background:var(--bg);border-radius:3px;height:12px}
+.geo-bar{height:100%;border-radius:3px;min-width:4px}
+.geo-count{font-size:11px;color:var(--muted);width:30px;text-align:right;flex-shrink:0}
+
+/* ── Skeleton ──────────────────────────────────────────── */
+.skel{background:linear-gradient(90deg,var(--border) 25%,var(--card2) 50%,var(--border) 75%);background-size:200% 100%;animation:skel 1.4s ease infinite;border-radius:4px}
+@keyframes skel{0%{background-position:200% 0}100%{background-position:-200% 0}}
+
+/* ── Mobile ────────────────────────────────────────────── */
+@media(max-width:800px){
+  #sidebar{width:0;overflow:hidden}
+  #main{margin-left:0;padding:0 14px 60px}
+  .chart-grid.cols2,.chart-grid.cols3{grid-template-columns:1fr}
+  .kpi-grid{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+
+<!-- ── Login ─────────────────────────────────────────────────────── -->
+<div id="login">
+  <div class="lc">
+    <div class="logo">🍳</div>
+    <h1>Command Centre</h1>
+    <p>RasoiLink · Owner-only analytics dashboard</p>
+    <input id="key-inp" type="password" placeholder="Admin key…" autocomplete="off"/>
+    <button id="login-btn">Access Dashboard</button>
+    <div class="err" id="login-err"></div>
+  </div>
+</div>
+
+<!-- ── Sidebar ───────────────────────────────────────────────────── -->
+<nav id="sidebar">
+  <div class="sb-brand">
+    <span class="icon">🍳</span>
+    <span class="name">RasoiLink</span>
+    <span class="badge">Live</span>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-section">Overview</div>
+    <a class="sb-link active" onclick="scrollTo('s-kpi')"><span class="si">📊</span>KPIs</a>
+    <a class="sb-link" onclick="scrollTo('s-growth')"><span class="si">📈</span>Growth</a>
+    <a class="sb-link" onclick="scrollTo('s-funnel')"><span class="si">🔽</span>Funnel</a>
+    <div class="sb-section">Users &amp; Platform</div>
+    <a class="sb-link" onclick="scrollTo('s-users')"><span class="si">👥</span>Users</a>
+    <a class="sb-link" onclick="scrollTo('s-geo')"><span class="si">🗺️</span>Geography</a>
+    <a class="sb-link" onclick="scrollTo('s-trust')"><span class="si">⭐</span>Trust</a>
+    <div class="sb-section">Jobs &amp; Hiring</div>
+    <a class="sb-link" onclick="scrollTo('s-jobs')"><span class="si">💼</span>Jobs</a>
+    <a class="sb-link" onclick="scrollTo('s-offers')"><span class="si">🤝</span>Offers</a>
+    <a class="sb-link" onclick="scrollTo('s-agreements')"><span class="si">📄</span>Agreements</a>
+    <div class="sb-section">Finance</div>
+    <a class="sb-link" onclick="scrollTo('s-pay')"><span class="si">💰</span>Pay Security</a>
+    <a class="sb-link" onclick="scrollTo('s-revenue')"><span class="si">💳</span>Revenue</a>
+    <div class="sb-section">Live</div>
+    <a class="sb-link" onclick="scrollTo('s-activity')"><span class="si">⚡</span>Activity</a>
+  </div>
+  <div class="sb-footer">
+    <span class="refresh-info" id="last-ref">—</span>
+    <button id="logout-btn">Sign out</button>
+  </div>
+</nav>
+
+<!-- ── Main ──────────────────────────────────────────────────────── -->
+<div id="main">
+
+  <div class="topbar">
+    <h1>RasoiLink <span>Command Centre</span></h1>
+    <div class="tb-right">
+      <select class="range-sel" id="days-sel">
+        <option value="7">Last 7 days</option>
+        <option value="14">Last 14 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="60">Last 60 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+      <button class="refresh-btn" id="refresh-btn">
+        <span class="ri" style="display:inline-block">↻</span> Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- ── KPIs ─────────────────────────────────────────── -->
+  <div class="section" id="s-kpi">
+    <div class="sec-title">Platform KPIs</div>
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi skel" style="height:84px"></div>
+      <div class="kpi skel" style="height:84px"></div>
+      <div class="kpi skel" style="height:84px"></div>
+      <div class="kpi skel" style="height:84px"></div>
+      <div class="kpi skel" style="height:84px"></div>
+      <div class="kpi skel" style="height:84px"></div>
+      <div class="kpi skel" style="height:84px"></div>
+      <div class="kpi skel" style="height:84px"></div>
+    </div>
+  </div>
+
+  <!-- ── Growth trends ────────────────────────────────── -->
+  <div class="section" id="s-growth">
+    <div class="sec-title">Growth Trends</div>
+    <div class="chart-grid cols2">
+      <div class="chart-card">
+        <h3>Daily Signups — Workers vs Owners</h3>
+        <div class="chart-wrap h240"><canvas id="chart-signups"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Daily Listings &amp; Offers Posted</h3>
+        <div class="chart-wrap h240"><canvas id="chart-listings"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Funnel ────────────────────────────────────────── -->
+  <div class="section" id="s-funnel">
+    <div class="sec-title">Platform Conversion Funnel</div>
+    <div class="chart-card">
+      <h3>Registration → Pay Confirmed</h3>
+      <div class="funnel-wrap" id="funnel-wrap">
+        <div class="skel" style="height:22px;border-radius:4px"></div>
+        <div class="skel" style="height:22px;border-radius:4px;margin-top:6px"></div>
+        <div class="skel" style="height:22px;border-radius:4px;margin-top:6px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Users ─────────────────────────────────────────── -->
+  <div class="section" id="s-users">
+    <div class="sec-title">Users</div>
+    <div class="chart-grid cols3">
+      <div class="chart-card">
+        <h3>Signups Over Time (cumulative context)</h3>
+        <div class="stat-row" id="user-pills">
+          <div class="skel stat-pill" style="height:56px"></div>
+          <div class="skel stat-pill" style="height:56px"></div>
+          <div class="skel stat-pill" style="height:56px"></div>
+          <div class="skel stat-pill" style="height:56px"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Worker vs Owner Split</h3>
+        <div class="chart-wrap h160"><canvas id="chart-user-split"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Verified vs Unverified</h3>
+        <div class="chart-wrap h160"><canvas id="chart-verified"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Geography ─────────────────────────────────────── -->
+  <div class="section" id="s-geo">
+    <div class="sec-title">Geography</div>
+    <div class="chart-grid cols2">
+      <div class="chart-card">
+        <h3>Workers by State</h3>
+        <div class="geo-list" id="geo-workers"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Job Listings by State</h3>
+        <div class="geo-list" id="geo-listings"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Trust ─────────────────────────────────────────── -->
+  <div class="section" id="s-trust">
+    <div class="sec-title">Trust &amp; Verification</div>
+    <div class="chart-grid cols2">
+      <div class="chart-card">
+        <h3>Trust Score Distribution (0–5)</h3>
+        <div class="chart-wrap h200"><canvas id="chart-trust"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Verification Status</h3>
+        <div id="verif-table-wrap"><div class="skel" style="height:120px;border-radius:6px"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Jobs ──────────────────────────────────────────── -->
+  <div class="section" id="s-jobs">
+    <div class="sec-title">Jobs</div>
+    <div class="chart-grid cols2" style="margin-bottom:14px">
+      <div class="chart-card">
+        <h3>Listings by Role</h3>
+        <div class="chart-wrap h240"><canvas id="chart-roles"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Listings by Status</h3>
+        <div class="chart-wrap h240"><canvas id="chart-job-status"></canvas></div>
+      </div>
+    </div>
+    <div class="chart-card">
+      <h3>Top Owners by Listings Posted</h3>
+      <table class="data-table" id="top-owners-table">
+        <thead><tr><th>#</th><th>Owner</th><th>Total Listings</th><th>Active</th><th>Last Posted</th></tr></thead>
+        <tbody id="top-owners-body">
+          <tr><td colspan="5"><div class="skel" style="height:40px;border-radius:4px"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── Offers ────────────────────────────────────────── -->
+  <div class="section" id="s-offers">
+    <div class="sec-title">Offers</div>
+    <div class="chart-grid cols3">
+      <div class="chart-card">
+        <h3>Offer Flow</h3>
+        <div class="chart-wrap h200"><canvas id="chart-offers"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Acceptance Rate</h3>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:6px">
+          <div id="accept-rate-val" style="font-size:52px;font-weight:800;color:var(--teal)">—</div>
+          <div style="font-size:12px;color:var(--muted)">of decided offers accepted</div>
+          <div id="accept-rate-sub" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h3>Avg Response Time</h3>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:6px">
+          <div id="response-time-val" style="font-size:52px;font-weight:800;color:var(--a2)">—</div>
+          <div style="font-size:12px;color:var(--muted)">hours to accept / reject</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">median offer response</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Agreements ────────────────────────────────────── -->
+  <div class="section" id="s-agreements">
+    <div class="sec-title">Agreements</div>
+    <div class="kpi-grid" id="agr-grid">
+      <div class="skel" style="height:84px;border-radius:var(--r)"></div>
+      <div class="skel" style="height:84px;border-radius:var(--r)"></div>
+      <div class="skel" style="height:84px;border-radius:var(--r)"></div>
+      <div class="skel" style="height:84px;border-radius:var(--r)"></div>
+    </div>
+  </div>
+
+  <!-- ── Pay Security ──────────────────────────────────── -->
+  <div class="section" id="s-pay">
+    <div class="sec-title">Pay Security</div>
+    <div class="chart-grid cols2">
+      <div class="chart-card">
+        <h3>Pay Cycle Health</h3>
+        <div style="margin-bottom:14px">
+          <div id="pay-stack-wrap" class="pay-stack" style="margin-bottom:8px"></div>
+          <div id="pay-legend" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:10px"></div>
+        </div>
+        <div class="chart-wrap h160"><canvas id="chart-pay"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>Dispute Rate &amp; Stats</h3>
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;gap:8px">
+          <div id="dispute-rate-val" style="font-size:56px;font-weight:800">—</div>
+          <div style="font-size:12px;color:var(--muted)">dispute rate across all pay cycles</div>
+          <div id="dispute-sub" style="font-size:11px;color:var(--muted);margin-top:4px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Revenue ───────────────────────────────────────── -->
+  <div class="section" id="s-revenue">
+    <div class="sec-title">Revenue &amp; Subscriptions</div>
+    <div class="chart-grid cols3">
+      <div class="chart-card">
+        <h3>Plan Breakdown</h3>
+        <div class="chart-wrap h200"><canvas id="chart-plans"></canvas></div>
+      </div>
+      <div class="chart-card" style="grid-column:span 2">
+        <h3>Subscription KPIs</h3>
+        <div class="kpi-grid" id="rev-kpi-grid">
+          <div class="skel" style="height:84px;border-radius:var(--r)"></div>
+          <div class="skel" style="height:84px;border-radius:var(--r)"></div>
+          <div class="skel" style="height:84px;border-radius:var(--r)"></div>
+          <div class="skel" style="height:84px;border-radius:var(--r)"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Activity ──────────────────────────────────────── -->
+  <div class="section" id="s-activity">
+    <div class="sec-title">Live Activity Feed</div>
+    <div class="chart-card">
+      <table class="data-table">
+        <thead><tr><th>Event</th><th>Detail</th><th>When</th></tr></thead>
+        <tbody id="activity-body">
+          <tr><td colspan="3"><div class="skel" style="height:120px;border-radius:4px"></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+const API = 'https://rasoilink-production.up.railway.app';
+
+// ── Auth ──────────────────────────────────────────────────────────────────────
+const getKey = () => localStorage.getItem('rl_cc_key');
+
+function authHeaders() {
+  return { 'Content-Type': 'application/json', 'x-admin-key': getKey() };
+}
+
+async function apiFetch(path) {
+  const res = await fetch(API + path, { headers: authHeaders(), signal: AbortSignal.timeout(30000) });
+  if (res.status === 401) {
+    localStorage.removeItem('rl_cc_key');
+    location.reload();
+    throw new Error('Unauthorized');
+  }
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error || 'API error');
+  return json.data;
+}
+
+// ── Login ─────────────────────────────────────────────────────────────────────
+document.getElementById('login-btn').addEventListener('click', async () => {
+  const val = document.getElementById('key-inp').value.trim();
+  if (!val) return;
+  localStorage.setItem('rl_cc_key', val);
+  // validate
+  try {
+    await apiFetch('/admin/overview');
+    document.getElementById('login').style.display = 'none';
+    initDashboard();
+  } catch(e) {
+    localStorage.removeItem('rl_cc_key');
+    document.getElementById('login-err').textContent = 'Invalid key — try again';
+  }
+});
+document.getElementById('key-inp').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('login-btn').click();
+});
+
+document.getElementById('logout-btn').addEventListener('click', () => {
+  localStorage.removeItem('rl_cc_key');
+  location.reload();
+});
+
+// ── Sidebar scroll-spy ────────────────────────────────────────────────────────
+function scrollTo(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+}
+document.querySelectorAll('.sb-link').forEach(link => {
+  link.addEventListener('click', () => {
+    document.querySelectorAll('.sb-link').forEach(l => l.classList.remove('active'));
+    link.classList.add('active');
+  });
+});
+
+// ── Chart registry ────────────────────────────────────────────────────────────
+const charts = {};
+function mkChart(id, config) {
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id)?.getContext('2d');
+  if (!ctx) return;
+  charts[id] = new Chart(ctx, config);
+}
+
+const COLORS = {
+  teal:   '#1EC9A0', blue:   '#4A90E2', accent: '#FF6B2B',
+  a2:     '#F5A623', purple: '#8B5CF6', ok:     '#27AE60',
+  warn:   '#F39C12', danger: '#E74C3C', muted:  '#8B90A7',
+};
+const CHART_DEFAULTS = {
+  plugins: { legend: { labels: { color: '#8B90A7', font: { size: 11 }, boxWidth: 10 } } },
+  scales:  {
+    x: { grid: { color: '#2A2D3E' }, ticks: { color: '#8B90A7', font: { size: 10 } } },
+    y: { grid: { color: '#2A2D3E' }, ticks: { color: '#8B90A7', font: { size: 10 } } },
+  },
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function fmt(n) { return n == null ? '—' : n.toLocaleString(); }
+function pct(n) { return n == null ? '—' : n + '%'; }
+function timeAgo(ts) {
+  const d = Math.floor((Date.now() - new Date(ts)) / 1000);
+  if (d < 60)   return d + 's ago';
+  if (d < 3600) return Math.floor(d/60) + 'm ago';
+  if (d < 86400)return Math.floor(d/3600) + 'h ago';
+  return Math.floor(d/86400) + 'd ago';
+}
+function kpi(label, val, sub, color, cls) {
+  return `<div class="kpi" style="--c:${color}">
+    <div class="kpi-label">${label}</div>
+    <div class="kpi-val ${cls||''}">${val}</div>
+    <div class="kpi-sub">${sub||''}</div>
+  </div>`;
+}
+function statusBadge(s) {
+  const map = { active:'b-active',filled:'b-filled',draft:'b-draft',expired:'b-expired',
+    pending:'b-warn',accepted:'b-ok',rejected:'b-danger',
+    active_agreement:'b-active',terminated:'b-danger',completed:'b-ok',
+    scheduled:'b-draft',owner_confirmed:'b-warn',worker_confirmed:'b-ok',
+    disputed:'b-danger',resolved:'b-purple',late:'b-danger' };
+  return `<span class="badge ${map[s]||'b-draft'}">${s.replace(/_/g,' ')}</span>`;
+}
+
+// ── Render: KPIs ─────────────────────────────────────────────────────────────
+function renderKPIs(ov, stats) {
+  const u  = ov.users;
+  const l  = ov.listings;
+  const o  = ov.offers;
+  const s  = ov.subscriptions;
+  const mrr = (s.mrr_cents / 100).toFixed(0);
+  const dr  = stats?.pay?.dispute_rate ?? '—';
+  const drClass = (dr !== '—' && dr > 5) ? 'kpi-danger' : dr > 2 ? 'kpi-warn' : 'kpi-ok';
+
+  document.getElementById('kpi-grid').innerHTML =
+    kpi('Total Users',       fmt(u.total),   `${fmt(u.new_today)} today · ${fmt(u.new_7d)} this week`, COLORS.accent)  +
+    kpi('Workers',           fmt(u.workers), `${fmt(u.verified)} verified`, COLORS.teal) +
+    kpi('Owners',            fmt(u.owners),  `Restaurants posting jobs`, COLORS.blue) +
+    kpi('Active Listings',   fmt(l.active),  `${fmt(l.filled)} filled · ${fmt(l.new_7d)} new this week`, COLORS.a2) +
+    kpi('Offers Made',       fmt(o.total),   `${fmt(o.pending)} pending · ${fmt(o.accepted)} accepted`, COLORS.purple) +
+    kpi('Active Agreements', fmt(stats?.agreements?.by_status?.active_agreement ?? '—'), `Signed employment agreements`, COLORS.ok) +
+    kpi('MRR',               '$' + fmt(parseInt(mrr)), `${fmt(s.active)} active subscriptions`, COLORS.a2) +
+    kpi('Dispute Rate',      (dr !== '—' ? dr + '%' : '—'), `Pay cycle health indicator`, COLORS.danger, drClass);
+}
+
+// ── Render: Growth charts ─────────────────────────────────────────────────────
+function renderGrowth(trends) {
+  const labels   = trends.map(t => t.date);
+  const workers  = trends.map(t => t.workers);
+  const owners   = trends.map(t => t.owners);
+  const listings = trends.map(t => t.listings);
+  const offers   = trends.map(t => t.offers);
+
+  mkChart('chart-signups', {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Workers', data: workers, borderColor: COLORS.teal, backgroundColor: COLORS.teal + '22', fill: true, tension: .4, pointRadius: 2 },
+        { label: 'Owners',  data: owners,  borderColor: COLORS.accent, backgroundColor: COLORS.accent + '22', fill: true, tension: .4, pointRadius: 2 },
+      ],
+    },
+    options: { ...CHART_DEFAULTS, responsive: true, maintainAspectRatio: false,
+      plugins: { ...CHART_DEFAULTS.plugins },
+      scales: CHART_DEFAULTS.scales },
+  });
+
+  mkChart('chart-listings', {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Listings', data: listings, borderColor: COLORS.blue, backgroundColor: COLORS.blue + '22', fill: true, tension: .4, pointRadius: 2 },
+        { label: 'Offers',   data: offers,   borderColor: COLORS.purple, backgroundColor: COLORS.purple + '22', fill: true, tension: .4, pointRadius: 2 },
+      ],
+    },
+    options: { ...CHART_DEFAULTS, responsive: true, maintainAspectRatio: false },
+  });
+}
+
+// ── Render: Funnel ────────────────────────────────────────────────────────────
+function renderFunnel(f) {
+  const steps = [
+    { label: 'Registered',         val: f.registered,      color: COLORS.accent },
+    { label: 'Created profile',     val: f.worker_profiles + f.owner_profiles, color: COLORS.a2 },
+    { label: 'Posted / Applied',    val: Math.max(f.owners_posted, f.workers_applied), color: COLORS.blue },
+    { label: 'Offer made',          val: f.offers_made,     color: COLORS.purple },
+    { label: 'Offer accepted',      val: f.offers_accepted, color: COLORS.teal },
+    { label: 'Agreement signed',    val: f.agreements,      color: COLORS.ok },
+    { label: 'First pay confirmed', val: f.pay_confirmed,   color: COLORS.ok },
+  ];
+  const max = steps[0].val || 1;
+  document.getElementById('funnel-wrap').innerHTML = steps.map((s, i) => {
+    const w = Math.round(100 * s.val / max);
+    const p = i === 0 ? '100%' : (max > 0 ? Math.round(100 * s.val / max) + '%' : '0%');
+    const convFrom = i > 0 && steps[i-1].val > 0 ? Math.round(100 * s.val / steps[i-1].val) + '%' : '—';
+    return `<div class="funnel-row">
+      <div class="funnel-label">${s.label}</div>
+      <div class="funnel-bar-outer">
+        <div class="funnel-bar" style="width:${p};background:${s.color}">
+          <span>${fmt(s.val)}</span>
+        </div>
+      </div>
+      <div class="funnel-pct">${convFrom}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Render: Users ─────────────────────────────────────────────────────────────
+function renderUsers(ov) {
+  const u = ov.users;
+  document.getElementById('user-pills').innerHTML =
+    `<div class="stat-pill"><div class="sp-val" style="color:var(--accent)">${fmt(u.total)}</div><div class="sp-lab">Total users</div></div>` +
+    `<div class="stat-pill"><div class="sp-val" style="color:var(--teal)">${fmt(u.workers)}</div><div class="sp-lab">Workers</div></div>` +
+    `<div class="stat-pill"><div class="sp-val" style="color:var(--blue)">${fmt(u.owners)}</div><div class="sp-lab">Owners</div></div>` +
+    `<div class="stat-pill"><div class="sp-val" style="color:var(--ok)">${fmt(u.verified)}</div><div class="sp-lab">Verified</div></div>`;
+
+  mkChart('chart-user-split', {
+    type: 'doughnut',
+    data: {
+      labels: ['Workers', 'Owners'],
+      datasets: [{ data: [u.workers, u.owners], backgroundColor: [COLORS.teal, COLORS.accent], borderWidth: 0 }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: { legend: { position: 'bottom', labels: { color: '#8B90A7', font: { size: 11 } } } } },
+  });
+
+  mkChart('chart-verified', {
+    type: 'doughnut',
+    data: {
+      labels: ['Verified', 'Unverified'],
+      datasets: [{ data: [u.verified, u.total - u.verified], backgroundColor: [COLORS.ok, COLORS.muted + '55'], borderWidth: 0 }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: { legend: { position: 'bottom', labels: { color: '#8B90A7', font: { size: 11 } } } } },
+  });
+}
+
+// ── Render: Geo ───────────────────────────────────────────────────────────────
+function renderGeoList(elId, data, color) {
+  const max = data[0]?.count || 1;
+  document.getElementById(elId).innerHTML = data.slice(0, 12).map(r =>
+    `<div class="geo-row">
+      <div class="geo-state">${r.state}</div>
+      <div class="geo-bar-outer">
+        <div class="geo-bar" style="width:${Math.round(100*r.count/max)}%;background:${color}"></div>
+      </div>
+      <div class="geo-count">${r.count}</div>
+    </div>`
+  ).join('') || '<div style="color:var(--muted);font-size:12px">No data yet</div>';
+}
+
+// ── Render: Trust ─────────────────────────────────────────────────────────────
+function renderTrust(trust) {
+  const dist = trust.distribution;
+  const labels = dist.map(d => d.bucket);
+  const vals   = dist.map(d => d.count);
+
+  mkChart('chart-trust', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ label: 'Users', data: vals,
+        backgroundColor: [COLORS.danger, COLORS.warn, COLORS.a2, COLORS.teal, COLORS.ok],
+        borderRadius: 4 }],
+    },
+    options: { ...CHART_DEFAULTS, responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } } },
+  });
+
+  // Verification table
+  const grouped = {};
+  for (const v of trust.verifications) {
+    if (!grouped[v.type]) grouped[v.type] = {};
+    grouped[v.type][v.status] = v.count;
+  }
+  if (Object.keys(grouped).length === 0) {
+    document.getElementById('verif-table-wrap').innerHTML = '<div style="color:var(--muted);font-size:12px;padding:8px 0">No verifications yet</div>';
+    return;
+  }
+  const rows = Object.entries(grouped).map(([type, statuses]) =>
+    `<tr>
+      <td>${type.replace(/_/g,' ')}</td>
+      <td>${fmt(statuses['approved']||0)}</td>
+      <td>${fmt(statuses['pending']||0)}</td>
+      <td>${fmt(statuses['rejected']||0)}</td>
+    </tr>`
+  ).join('');
+  document.getElementById('verif-table-wrap').innerHTML =
+    `<table class="data-table">
+       <thead><tr><th>Type</th><th>Approved</th><th>Pending</th><th>Rejected</th></tr></thead>
+       <tbody>${rows}</tbody>
+     </table>`;
+}
+
+// ── Render: Jobs ──────────────────────────────────────────────────────────────
+function renderJobs(jobs) {
+  // By role
+  mkChart('chart-roles', {
+    type: 'bar',
+    data: {
+      labels: jobs.by_role.map(r => r.role),
+      datasets: [{ label: 'Listings', data: jobs.by_role.map(r => r.count),
+        backgroundColor: COLORS.blue + 'CC', borderRadius: 4 }],
+    },
+    options: { ...CHART_DEFAULTS, indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } } },
+  });
+
+  // By status
+  const statusColors = { active: COLORS.teal, filled: COLORS.blue, draft: COLORS.muted, expired: COLORS.danger };
+  mkChart('chart-job-status', {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(jobs.by_status),
+      datasets: [{ data: Object.values(jobs.by_status),
+        backgroundColor: Object.keys(jobs.by_status).map(s => statusColors[s] || COLORS.muted),
+        borderWidth: 0 }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'right', labels: { color: '#8B90A7', font: { size: 11 } } } } },
+  });
+
+  // Top owners
+  document.getElementById('top-owners-body').innerHTML = jobs.top_owners.map((o, i) =>
+    `<tr>
+      <td style="color:var(--muted)">${i+1}</td>
+      <td style="font-weight:600">${o.name || '—'}</td>
+      <td>${fmt(o.total)}</td>
+      <td>${statusBadge('active')} ${fmt(o.active)}</td>
+      <td style="color:var(--muted)">${o.last_posted ? timeAgo(o.last_posted) : '—'}</td>
+    </tr>`
+  ).join('') || '<tr><td colspan="5" style="color:var(--muted)">No listings yet</td></tr>';
+}
+
+// ── Render: Offers ────────────────────────────────────────────────────────────
+function renderOffers(offers) {
+  const bs = offers.by_status;
+  mkChart('chart-offers', {
+    type: 'doughnut',
+    data: {
+      labels: ['Pending', 'Accepted', 'Rejected', 'Expired'],
+      datasets: [{
+        data: [bs.pending||0, bs.accepted||0, bs.rejected||0, bs.expired||0],
+        backgroundColor: [COLORS.warn, COLORS.ok, COLORS.danger, COLORS.muted],
+        borderWidth: 0,
+      }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'bottom', labels: { color: '#8B90A7', font: { size: 11 } } } } },
+  });
+
+  const ar = offers.acceptance_rate;
+  document.getElementById('accept-rate-val').textContent = ar != null ? ar + '%' : '—';
+  document.getElementById('accept-rate-val').style.color = ar >= 60 ? COLORS.ok : ar >= 40 ? COLORS.warn : COLORS.danger;
+  document.getElementById('accept-rate-sub').textContent =
+    `${fmt(bs.accepted||0)} accepted · ${fmt(bs.rejected||0)} rejected`;
+
+  const rh = offers.avg_response_hours;
+  document.getElementById('response-time-val').textContent = rh ? rh + 'h' : '—';
+}
+
+// ── Render: Agreements ────────────────────────────────────────────────────────
+function renderAgreements(agr) {
+  const bs = agr.by_status;
+  document.getElementById('agr-grid').innerHTML =
+    kpi('Active',            fmt(bs.active_agreement||0),         'Currently employed',          COLORS.teal, 'kpi-ok') +
+    kpi('Pending Signatures',fmt(bs.pending_signatures||0),       'Awaiting both parties',        COLORS.warn) +
+    kpi('Completed',         fmt(bs.completed||0),                'Successfully finished',        COLORS.ok) +
+    kpi('Terminated',        fmt(bs.terminated||0),               'Ended early',                 COLORS.danger);
+}
+
+// ── Render: Pay ───────────────────────────────────────────────────────────────
+function renderPay(pay) {
+  const bs = pay.by_status;
+  const total = pay.total || 1;
+  const segs = [
+    { key: 'worker_confirmed', label: 'Confirmed',      color: COLORS.ok },
+    { key: 'owner_confirmed',  label: 'Owner sent',     color: COLORS.teal },
+    { key: 'scheduled',        label: 'Upcoming',       color: COLORS.blue },
+    { key: 'late',             label: 'Late',           color: COLORS.warn },
+    { key: 'disputed',         label: 'Disputed',       color: COLORS.danger },
+    { key: 'resolved',         label: 'Resolved',       color: COLORS.purple },
+  ];
+  document.getElementById('pay-stack-wrap').innerHTML = segs.map(s => {
+    const n = bs[s.key] || 0;
+    const w = Math.round(100 * n / total);
+    return w > 0 ? `<div class="pay-seg" style="width:${w}%;background:${s.color}">${w > 8 ? fmt(n) : ''}</div>` : '';
+  }).join('');
+  document.getElementById('pay-legend').innerHTML = segs.map(s => {
+    const n = bs[s.key] || 0;
+    return `<div style="display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)">
+      <div style="width:8px;height:8px;border-radius:2px;background:${s.color}"></div>
+      ${s.label}: <span style="color:var(--text);font-weight:600">${fmt(n)}</span>
+    </div>`;
+  }).join('');
+
+  mkChart('chart-pay', {
+    type: 'bar',
+    data: {
+      labels: segs.map(s => s.label),
+      datasets: [{ label: 'Cycles', data: segs.map(s => bs[s.key]||0),
+        backgroundColor: segs.map(s => s.color + 'CC'), borderRadius: 4 }],
+    },
+    options: { ...CHART_DEFAULTS, responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } } },
+  });
+
+  const dr = pay.dispute_rate;
+  const drEl = document.getElementById('dispute-rate-val');
+  drEl.textContent = dr + '%';
+  drEl.style.color = dr > 5 ? COLORS.danger : dr > 2 ? COLORS.warn : COLORS.ok;
+  document.getElementById('dispute-sub').textContent =
+    `${fmt(bs.disputed||0)} disputed · ${fmt(bs.resolved||0)} resolved · ${fmt(pay.total)} total cycles`;
+}
+
+// ── Render: Revenue ───────────────────────────────────────────────────────────
+function renderRevenue(ov) {
+  const s = ov.subscriptions;
+  const bp = s.by_plan;
+  mkChart('chart-plans', {
+    type: 'doughnut',
+    data: {
+      labels: ['Free', 'Starter', 'Growth', 'Worker Boost'],
+      datasets: [{
+        data: [bp.free||0, bp.starter||0, bp.growth||0, bp.worker_boost||0],
+        backgroundColor: [COLORS.muted, COLORS.blue, COLORS.teal, COLORS.accent],
+        borderWidth: 0,
+      }],
+    },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'bottom', labels: { color: '#8B90A7', font: { size: 11 } } } } },
+  });
+
+  const mrr = (s.mrr_cents / 100);
+  document.getElementById('rev-kpi-grid').innerHTML =
+    kpi('MRR',          '$' + fmt(Math.round(mrr)),       'Monthly recurring revenue', COLORS.a2) +
+    kpi('ARR',          '$' + fmt(Math.round(mrr * 12)),  'Annualised',               COLORS.a2) +
+    kpi('Paid Subs',    fmt(s.active - (bp.free||0)),     `${fmt(s.active)} total active`, COLORS.ok) +
+    kpi('Free Plans',   fmt(bp.free||0),                  'Conversion opportunity',    COLORS.muted);
+}
+
+// ── Render: Activity ──────────────────────────────────────────────────────────
+function renderActivity(events) {
+  const iconMap = { signup:'👤', listing:'💼', offer:'🤝', subscription:'💳', agreement:'📄', payment:'💰' };
+  document.getElementById('activity-body').innerHTML = events.slice(0, 40).map(e =>
+    `<tr>
+      <td>${iconMap[e.type]||'•'} <strong>${e.type}</strong></td>
+      <td>
+        <div style="font-weight:600">${e.title||'—'}</div>
+        <div style="color:var(--muted);font-size:11px">${e.subtitle||''}</div>
+      </td>
+      <td style="color:var(--muted);white-space:nowrap">${timeAgo(e.ts)}</td>
+    </tr>`
+  ).join('') || '<tr><td colspan="3" style="color:var(--muted)">No activity yet</td></tr>';
+}
+
+// ── Master load ───────────────────────────────────────────────────────────────
+let _days = 30;
+
+async function loadAll() {
+  const btn = document.getElementById('refresh-btn');
+  btn.classList.add('spinning');
+
+  try {
+    const [ov, stats, activity] = await Promise.all([
+      apiFetch('/admin/overview'),
+      apiFetch(`/admin/stats?days=${_days}`),
+      apiFetch('/admin/activity?limit=40'),
+    ]);
+
+    renderKPIs(ov, stats);
+    renderGrowth(stats.trends);
+    renderFunnel(stats.funnel);
+    renderUsers(ov);
+    renderGeoList('geo-workers',  stats.geo.workers,  COLORS.teal);
+    renderGeoList('geo-listings', stats.geo.listings, COLORS.blue);
+    renderTrust(stats.trust);
+    renderJobs(stats.jobs);
+    renderOffers(stats.offers);
+    renderAgreements(stats.agreements);
+    renderPay(stats.pay);
+    renderRevenue(ov);
+    renderActivity(activity.events);
+
+    document.getElementById('last-ref').textContent =
+      'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch(e) {
+    console.error('Dashboard load error:', e);
+  } finally {
+    btn.classList.remove('spinning');
+  }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function initDashboard() {
+  loadAll();
+  setInterval(loadAll, 5 * 60 * 1000); // auto-refresh every 5 min
+
+  document.getElementById('refresh-btn').addEventListener('click', loadAll);
+
+  document.getElementById('days-sel').addEventListener('change', e => {
+    _days = parseInt(e.target.value, 10);
+    loadAll();
+  });
+}
+
+if (getKey()) {
+  document.getElementById('login').style.display = 'none';
+  initDashboard();
+}
+</script>
+</body>
+</html>
