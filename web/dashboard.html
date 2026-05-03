@@ -360,6 +360,12 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;displ
         <input id="wl-search" type="text" placeholder="Search name, email, phone…"
           style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
                  color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:7px 11px;outline:none;flex:1;min-width:180px"/>
+        <select id="wl-status" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+                 color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:7px 10px;outline:none">
+          <option value="pending">Pending OTP only</option>
+          <option value="">All leads</option>
+          <option value="registered">Registered only</option>
+        </select>
         <select id="wl-type" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
                  color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:7px 10px;outline:none">
           <option value="">All types</option>
@@ -782,18 +788,45 @@ const AT_KEY    = 'pat7gRz4vteZSoJWo.dacfba071ca496463111ab5e2bbdb3f4c887724a8b8
 const AT_BASE   = 'appRUAvZ7hYWPV1ga';
 const AT_TABLE  = 'Waitlist';
 
-let _wlAll = [];   // full list cached after first fetch
+let _wlAll        = [];        // all Airtable records
+let _wlRegistered = new Set(); // E.164 phones that completed OTP
+
+function _normPhone(p) {
+  if (!p) return '';
+  const digits = p.replace(/\D/g, '');
+  if (p.startsWith('+')) return p.replace(/\s/g,'');
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+  return `+${digits}`;
+}
 
 async function loadWaitlist() {
   document.getElementById('wl-body').innerHTML =
     '<div class="skel" style="height:120px;border-radius:6px"></div>';
   try {
+    // Fetch registered phone numbers from Railway DB (all pages)
+    _wlRegistered = new Set();
+    try {
+      let page = 1;
+      while (true) {
+        const d = await apiFetch(`/admin/users?limit=100&page=${page}`);
+        for (const u of d.users) {
+          const n = _normPhone(u.phone);
+          if (n) _wlRegistered.add(n);
+        }
+        if (d.users.length < 100) break;
+        page++;
+        if (page > 20) break; // safety cap
+      }
+    } catch(e) { /* silently skip — show all leads without status if DB unreachable */ }
+
+    // Fetch all Airtable records
     let records = [], offset = '';
     do {
       const params = new URLSearchParams({ pageSize: '100' });
       if (offset) params.set('offset', offset);
       const url = `https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_TABLE)}?${params}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${AT_KEY}` }, signal: AbortSignal.timeout(15000) });
+      const res  = await fetch(url, { headers: { Authorization: `Bearer ${AT_KEY}` }, signal: AbortSignal.timeout(15000) });
       const json = await res.json();
       if (!res.ok) {
         const msg = json?.error?.message || json?.error?.type || JSON.stringify(json);
@@ -802,7 +835,7 @@ async function loadWaitlist() {
       records = records.concat(json.records || []);
       offset = json.offset || '';
     } while (offset);
-    // Sort newest first by Airtable record creation time
+
     records.sort((a, b) => new Date(b.createdTime).getTime() - new Date(a.createdTime).getTime());
     _wlAll = records;
     renderWaitlist();
@@ -816,40 +849,61 @@ async function loadWaitlist() {
 }
 
 function renderWaitlist() {
-  const search = (document.getElementById('wl-search')?.value || '').toLowerCase();
-  const type   = document.getElementById('wl-type')?.value || '';
-  const rows   = _wlAll.filter(r => {
-    const f = r.fields;
-    const notes = (f['Notes'] || '');
-    if (type && !notes.includes(type)) return false;
+  const search    = (document.getElementById('wl-search')?.value  || '').toLowerCase();
+  const type      = document.getElementById('wl-type')?.value    || '';
+  const statusFil = document.getElementById('wl-status')?.value  || '';
+
+  const rows = _wlAll.filter(r => {
+    const f         = r.fields;
+    const notes     = f['Notes'] || '';
+    const phone     = _normPhone(f['Phone'] || '');
+    const isInApp   = phone && _wlRegistered.has(phone);
+
+    if (statusFil === 'pending'    &&  isInApp) return false;
+    if (statusFil === 'registered' && !isInApp) return false;
+    if (type   && !notes.includes(type)) return false;
     if (search) {
       const hay = `${f['Name']} ${f['Email']} ${f['Phone']} ${f['State']} ${notes}`.toLowerCase();
       if (!hay.includes(search)) return false;
     }
     return true;
   });
-  document.getElementById('wl-count').textContent = `${rows.length} of ${_wlAll.length} leads`;
+
+  const pendingCount = _wlAll.filter(r => {
+    const p = _normPhone(r.fields['Phone'] || '');
+    return !(p && _wlRegistered.has(p));
+  }).length;
+  document.getElementById('wl-count').textContent =
+    `${rows.length} shown · ${pendingCount} of ${_wlAll.length} not yet registered`;
+
   if (!rows.length) {
     document.getElementById('wl-body').innerHTML =
       '<div style="color:var(--muted);font-size:12px;padding:12px 0">No leads match filter</div>';
     return;
   }
+
   document.getElementById('wl-body').innerHTML = `
     <div style="overflow-x:auto">
       <table class="data-table">
         <thead><tr>
-          <th>Name</th><th>Email</th><th>Phone</th><th>Type</th>
+          <th>Status</th><th>Name</th><th>Email</th><th>Phone</th><th>Type</th>
           <th>State</th><th>Role / Restaurant</th><th>Signed Up</th>
         </tr></thead>
         <tbody>
           ${rows.map(r => {
-            const f = r.fields;
+            const f        = r.fields;
             const isWorker = (f['Notes']||'').includes('Worker');
             const detail   = isWorker ? (f['Role']||'—') : (f['Restaurant']||'—');
+            const phone    = _normPhone(f['Phone'] || '');
+            const inApp    = phone && _wlRegistered.has(phone);
+            const statusBadge = inApp
+              ? `<span class="badge b-ok">Registered</span>`
+              : `<span class="badge b-warn">Pending OTP</span>`;
             const typeBadge = isWorker
               ? `<span class="badge b-active">Worker</span>`
               : `<span class="badge b-filled">Owner</span>`;
             return `<tr>
+              <td>${statusBadge}</td>
               <td style="font-weight:600">${f['Name']||'—'}</td>
               <td style="color:var(--muted)">${f['Email']||'—'}</td>
               <td style="color:var(--muted)">${f['Phone']||'—'}</td>
@@ -864,9 +918,9 @@ function renderWaitlist() {
     </div>`;
 }
 
-// Attach directly — script is at bottom of body so DOM is ready
 document.getElementById('wl-search')?.addEventListener('input', renderWaitlist);
 document.getElementById('wl-type')?.addEventListener('change', renderWaitlist);
+document.getElementById('wl-status')?.addEventListener('change', renderWaitlist);
 
 // ── User List (/admin/users) ──────────────────────────────────────────────────
 let _ulPage = 1;
