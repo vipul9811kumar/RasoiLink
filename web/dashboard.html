@@ -970,25 +970,39 @@ async function loadAll() {
   btn.classList.add('spinning');
 
   try {
-    const [ov, stats, activity] = await Promise.all([
+    // overview + activity always exist — load these first
+    const [ov, activity] = await Promise.all([
       apiFetch('/admin/overview'),
-      apiFetch(`/admin/stats?days=${_days}`),
       apiFetch('/admin/activity?limit=40'),
     ]);
 
-    renderKPIs(ov, stats);
-    renderGrowth(stats.trends);
-    renderFunnel(stats.funnel);
+    // Render everything that only needs overview
+    renderKPIs(ov, null);
     renderUsers(ov);
-    renderGeoList('geo-workers',  stats.geo.workers,  COLORS.teal);
-    renderGeoList('geo-listings', stats.geo.listings, COLORS.blue);
-    renderTrust(stats.trust);
-    renderJobs(stats.jobs);
-    renderOffers(stats.offers);
-    renderAgreements(stats.agreements);
-    renderPay(stats.pay);
     renderRevenue(ov);
     renderActivity(activity.events);
+
+    // /admin/stats is the new endpoint — may not be deployed yet, degrade gracefully
+    let stats = null;
+    try {
+      stats = await apiFetch(`/admin/stats?days=${_days}`);
+    } catch(e) {
+      console.warn('/admin/stats not available yet (needs Railway deploy):', e.message);
+      showStatsUnavailable();
+    }
+
+    if (stats) {
+      renderKPIs(ov, stats);   // re-render KPIs with dispute rate from stats
+      renderGrowth(stats.trends);
+      renderFunnel(stats.funnel);
+      renderGeoList('geo-workers',  stats.geo.workers,  COLORS.teal);
+      renderGeoList('geo-listings', stats.geo.listings, COLORS.blue);
+      renderTrust(stats.trust);
+      renderJobs(stats.jobs);
+      renderOffers(stats.offers);
+      renderAgreements(stats.agreements);
+      renderPay(stats.pay);
+    }
 
     document.getElementById('last-ref').textContent =
       'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -997,6 +1011,17 @@ async function loadAll() {
   } finally {
     btn.classList.remove('spinning');
   }
+}
+
+function showStatsUnavailable() {
+  const msg = `<div style="color:var(--muted);font-size:12px;padding:16px 0;text-align:center">
+    Deploy the new backend to Railway to unlock this section
+  </div>`;
+  ['funnel-wrap','geo-workers','geo-listings','verif-table-wrap',
+   'top-owners-body','agr-grid','pay-stack-wrap','pay-legend'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = msg;
+  });
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
