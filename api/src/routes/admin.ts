@@ -258,68 +258,66 @@ export async function adminRoutes(app: FastifyInstance) {
 
     const days = Math.min(90, Math.max(7, parseInt(req.query.days ?? '30', 10)));
 
-    const [
-      signupTrendsRes, listingTrendsRes, offerTrendsRes,
-      funnelRes,
-      workerGeoRes, listingGeoRes,
-      jobsByRoleRes, jobsByStatusRes, topOwnersRes,
-      offerStatsRes, avgOfferResponseRes,
-      payCycleStatsRes,
-      trustDistRes,
-      agreementStatsRes,
-      verificationStatsRes,
-    ] = await Promise.all([
-      query(
+    // Use allSettled so a missing table (verifications, pay_cycles, agreements)
+    // returns empty rows instead of bringing down the entire endpoint.
+    const safe = (r: PromiseSettledResult<any>) =>
+      r.status === 'fulfilled' ? r.value : { rows: [] };
+
+    const results = await Promise.allSettled([
+      /* 0 */ query(
         `SELECT DATE(created_at) as date, user_type, COUNT(*) as count
          FROM app.users
          WHERE created_at >= now() - ($1 * INTERVAL '1 day')
          GROUP BY DATE(created_at), user_type ORDER BY date ASC`,
         [days],
       ),
-      query(
+      /* 1 */ query(
         `SELECT DATE(created_at) as date, COUNT(*) as count
          FROM app.listings
          WHERE created_at >= now() - ($1 * INTERVAL '1 day')
          GROUP BY DATE(created_at) ORDER BY date ASC`,
         [days],
       ),
-      query(
+      /* 2 */ query(
         `SELECT DATE(created_at) as date, COUNT(*) as count
          FROM app.offers
          WHERE created_at >= now() - ($1 * INTERVAL '1 day')
          GROUP BY DATE(created_at) ORDER BY date ASC`,
         [days],
       ),
+      /* 3 — funnel: core tables only (users, profiles, offers, listings) */
       query(`
         SELECT
-          (SELECT COUNT(*) FROM app.users)                                          AS registered,
-          (SELECT COUNT(*) FROM app.worker_profiles)                                AS worker_profiles,
-          (SELECT COUNT(*) FROM app.owner_profiles)                                 AS owner_profiles,
-          (SELECT COUNT(DISTINCT worker_id) FROM app.offers)                        AS workers_applied,
-          (SELECT COUNT(DISTINCT owner_id)  FROM app.listings)                      AS owners_posted,
-          (SELECT COUNT(*) FROM app.offers)                                          AS offers_made,
-          (SELECT COUNT(*) FROM app.offers WHERE status = 'accepted')               AS offers_accepted,
-          (SELECT COUNT(*) FROM app.agreements)                                      AS agreements,
-          (SELECT COUNT(*) FROM app.pay_cycles WHERE status = 'worker_confirmed')   AS pay_confirmed
+          (SELECT COUNT(*) FROM app.users)                                AS registered,
+          (SELECT COUNT(*) FROM app.worker_profiles)                      AS worker_profiles,
+          (SELECT COUNT(*) FROM app.owner_profiles)                       AS owner_profiles,
+          (SELECT COUNT(DISTINCT worker_id) FROM app.offers)              AS workers_applied,
+          (SELECT COUNT(DISTINCT owner_id)  FROM app.listings)            AS owners_posted,
+          (SELECT COUNT(*) FROM app.offers)                               AS offers_made,
+          (SELECT COUNT(*) FROM app.offers WHERE status = 'accepted')     AS offers_accepted
       `),
-      query(
+      /* 4 — funnel extended: agreements (may not exist yet) */
+      query(`SELECT COUNT(*) AS agreements FROM app.agreements`),
+      /* 5 — funnel extended: pay_cycles (may not exist yet) */
+      query(`SELECT COUNT(*) AS pay_confirmed FROM app.pay_cycles WHERE status = 'worker_confirmed'`),
+      /* 6 */ query(
         `SELECT current_state AS state, COUNT(*) AS count
          FROM app.worker_profiles
          WHERE current_state IS NOT NULL AND current_state <> ''
          GROUP BY current_state ORDER BY count DESC LIMIT 15`,
       ),
-      query(
+      /* 7 */ query(
         `SELECT state, COUNT(*) AS count
          FROM app.listings
          WHERE state IS NOT NULL AND state <> ''
          GROUP BY state ORDER BY count DESC LIMIT 15`,
       ),
-      query(
-        `SELECT role_code, COUNT(*) AS count FROM app.listings
-         GROUP BY role_code ORDER BY count DESC LIMIT 12`,
+      /* 8 */ query(
+        `SELECT COALESCE(role_code,'(unset)') AS role_code, COUNT(*) AS count
+         FROM app.listings GROUP BY role_code ORDER BY count DESC LIMIT 12`,
       ),
-      query(`SELECT status, COUNT(*) AS count FROM app.listings GROUP BY status`),
-      query(
+      /* 9 */ query(`SELECT status, COUNT(*) AS count FROM app.listings GROUP BY status`),
+      /* 10 */ query(
         `SELECT u.name AS owner_name,
                 COUNT(l.listing_id)                                          AS total,
                 COUNT(l.listing_id) FILTER (WHERE l.status = 'active')      AS active,
@@ -328,13 +326,13 @@ export async function adminRoutes(app: FastifyInstance) {
          JOIN app.users u ON u.user_id = l.owner_id
          GROUP BY u.user_id, u.name ORDER BY total DESC LIMIT 10`,
       ),
-      query(`SELECT status, COUNT(*) AS count FROM app.offers GROUP BY status`),
-      query(
+      /* 11 */ query(`SELECT status, COUNT(*) AS count FROM app.offers GROUP BY status`),
+      /* 12 */ query(
         `SELECT ROUND(AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600.0)::numeric, 1) AS avg_hours
          FROM app.offers WHERE status IN ('accepted','rejected')`,
       ),
-      query(`SELECT status, COUNT(*) AS count FROM app.pay_cycles GROUP BY status`),
-      query(
+      /* 13 — pay_cycles may not exist yet */ query(`SELECT status, COUNT(*) AS count FROM app.pay_cycles GROUP BY status`),
+      /* 14 */ query(
         `SELECT
            CASE
              WHEN trust_score < 1 THEN '0–1'
@@ -347,12 +345,24 @@ export async function adminRoutes(app: FastifyInstance) {
          FROM app.users
          GROUP BY bucket ORDER BY bucket`,
       ),
-      query(`SELECT status, COUNT(*) AS count FROM app.agreements GROUP BY status`),
-      query(
+      /* 15 — agreements may not exist yet */ query(`SELECT status, COUNT(*) AS count FROM app.agreements GROUP BY status`),
+      /* 16 — verifications may not exist yet */ query(
         `SELECT verification_type, status, COUNT(*) AS count
          FROM app.verifications GROUP BY verification_type, status`,
       ),
     ]);
+
+    const [
+      signupTrendsRes, listingTrendsRes, offerTrendsRes,
+      funnelCoreRes, funnelAgrRes, funnelPayRes,
+      workerGeoRes, listingGeoRes,
+      jobsByRoleRes, jobsByStatusRes, topOwnersRes,
+      offerStatsRes, avgOfferResponseRes,
+      payCycleStatsRes,
+      trustDistRes,
+      agreementStatsRes,
+      verificationStatsRes,
+    ] = results.map(safe);
 
     // ── Build time-series (fill gaps with 0) ──────────────────────────────────
     const dateLabels: string[] = [];
@@ -383,17 +393,17 @@ export async function adminRoutes(app: FastifyInstance) {
     }));
 
     // ── Funnel ────────────────────────────────────────────────────────────────
-    const f = funnelRes.rows[0];
+    const fc = funnelCoreRes.rows[0] ?? {};
     const funnel = {
-      registered:      parseInt(f.registered,       10),
-      worker_profiles: parseInt(f.worker_profiles,  10),
-      owner_profiles:  parseInt(f.owner_profiles,   10),
-      workers_applied: parseInt(f.workers_applied,  10),
-      owners_posted:   parseInt(f.owners_posted,    10),
-      offers_made:     parseInt(f.offers_made,      10),
-      offers_accepted: parseInt(f.offers_accepted,  10),
-      agreements:      parseInt(f.agreements,       10),
-      pay_confirmed:   parseInt(f.pay_confirmed,    10),
+      registered:      parseInt(fc.registered      ?? '0', 10),
+      worker_profiles: parseInt(fc.worker_profiles ?? '0', 10),
+      owner_profiles:  parseInt(fc.owner_profiles  ?? '0', 10),
+      workers_applied: parseInt(fc.workers_applied ?? '0', 10),
+      owners_posted:   parseInt(fc.owners_posted   ?? '0', 10),
+      offers_made:     parseInt(fc.offers_made     ?? '0', 10),
+      offers_accepted: parseInt(fc.offers_accepted ?? '0', 10),
+      agreements:      parseInt(funnelAgrRes.rows[0]?.agreements ?? '0', 10),
+      pay_confirmed:   parseInt(funnelPayRes.rows[0]?.pay_confirmed ?? '0', 10),
     };
 
     // ── Offers ────────────────────────────────────────────────────────────────
