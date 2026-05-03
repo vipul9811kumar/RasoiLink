@@ -269,6 +269,8 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;displ
     <a class="sb-link" data-section="s-growth" onclick="navTo('s-growth')"><span class="si">📈</span>Growth</a>
     <a class="sb-link" data-section="s-funnel" onclick="navTo('s-funnel')"><span class="si">🔽</span>Funnel</a>
     <div class="sb-section">Users &amp; Platform</div>
+    <a class="sb-link" data-section="s-waitlist" onclick="navTo('s-waitlist')"><span class="si">📋</span>Waitlist</a>
+    <a class="sb-link" data-section="s-userlist" onclick="navTo('s-userlist')"><span class="si">👤</span>User List</a>
     <a class="sb-link" data-section="s-users" onclick="navTo('s-users')"><span class="si">👥</span>Users</a>
     <a class="sb-link" data-section="s-geo" onclick="navTo('s-geo')"><span class="si">🗺️</span>Geography</a>
     <a class="sb-link" data-section="s-trust" onclick="navTo('s-trust')"><span class="si">⭐</span>Trust</a>
@@ -347,6 +349,49 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;displ
         <div class="skel" style="height:22px;border-radius:4px;margin-top:6px"></div>
         <div class="skel" style="height:22px;border-radius:4px;margin-top:6px"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ── Waitlist (Airtable leads) ────────────────────── -->
+  <div class="section" id="s-waitlist">
+    <div class="sec-title">Waitlist — Landing Page Leads</div>
+    <div class="chart-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <input id="wl-search" type="text" placeholder="Search name, email, phone…"
+          style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+                 color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:7px 11px;outline:none;flex:1;min-width:180px"/>
+        <select id="wl-type" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+                 color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:7px 10px;outline:none">
+          <option value="">All types</option>
+          <option value="Worker">Workers</option>
+          <option value="Owner">Owners</option>
+        </select>
+        <span id="wl-count" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div id="wl-body"><div class="skel" style="height:120px;border-radius:6px"></div></div>
+    </div>
+  </div>
+
+  <!-- ── User List (registered app users) ─────────────── -->
+  <div class="section" id="s-userlist">
+    <div class="sec-title">Registered Users</div>
+    <div class="chart-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <input id="ul-search" type="text" placeholder="Search name or phone…"
+          style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+                 color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:7px 11px;outline:none;flex:1;min-width:180px"/>
+        <select id="ul-type" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--r);
+                 color:var(--text);font-family:'Inter',sans-serif;font-size:13px;padding:7px 10px;outline:none">
+          <option value="">All types</option>
+          <option value="worker">Workers</option>
+          <option value="owner">Owners</option>
+        </select>
+        <button onclick="loadUserList(1)" style="background:var(--accent);border:none;border-radius:var(--r);
+                 color:#fff;font-family:'Inter',sans-serif;font-size:13px;padding:7px 14px;cursor:pointer">Search</button>
+        <span id="ul-count" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div id="ul-body"><div class="skel" style="height:160px;border-radius:6px"></div></div>
+      <div id="ul-pagination" style="display:flex;gap:8px;justify-content:center;margin-top:12px"></div>
     </div>
   </div>
 
@@ -582,7 +627,7 @@ function setActiveLink(sectionId) {
 }
 
 // Auto-highlight active link as user scrolls
-const _sectionIds = ['s-kpi','s-growth','s-funnel','s-users','s-geo','s-trust','s-jobs','s-offers','s-agreements','s-pay','s-revenue','s-activity'];
+const _sectionIds = ['s-kpi','s-growth','s-funnel','s-waitlist','s-userlist','s-users','s-geo','s-trust','s-jobs','s-offers','s-agreements','s-pay','s-revenue','s-activity'];
 const _observer = new IntersectionObserver(entries => {
   for (const entry of entries) {
     if (entry.isIntersecting) {
@@ -727,6 +772,160 @@ function renderFunnel(f) {
     </div>`;
   }).join('');
 }
+
+// ── Waitlist (Airtable) ───────────────────────────────────────────────────────
+const AT_KEY    = 'pat7gRz4vteZSoJWo.dacfba071ca496463111ab5e2bbdb3f4c887724a8b8eb404b1d6f2d33f285081';
+const AT_BASE   = 'appRUAvZ7hYWPV1ga';
+const AT_TABLE  = 'Waitlist';
+
+let _wlAll = [];   // full list cached after first fetch
+
+async function loadWaitlist() {
+  document.getElementById('wl-body').innerHTML =
+    '<div class="skel" style="height:120px;border-radius:6px"></div>';
+  try {
+    let records = [], offset = '';
+    // Airtable pages at 100 records; loop until done
+    do {
+      const url = `https://api.airtable.com/v0/${AT_BASE}/${encodeURIComponent(AT_TABLE)}?pageSize=100`
+        + (offset ? `&offset=${offset}` : '')
+        + `&sort[0][field]=Signed Up At&sort[0][direction]=desc`;
+      const res = await fetch(url, { headers: { Authorization: `Bearer ${AT_KEY}` }, signal: AbortSignal.timeout(15000) });
+      const json = await res.json();
+      records = records.concat(json.records || []);
+      offset = json.offset || '';
+    } while (offset);
+    _wlAll = records;
+    renderWaitlist();
+  } catch(e) {
+    document.getElementById('wl-body').innerHTML =
+      `<div style="color:var(--muted);font-size:12px;padding:12px 0">Could not load Airtable: ${e.message}</div>`;
+  }
+}
+
+function renderWaitlist() {
+  const search = (document.getElementById('wl-search')?.value || '').toLowerCase();
+  const type   = document.getElementById('wl-type')?.value || '';
+  const rows   = _wlAll.filter(r => {
+    const f = r.fields;
+    const notes = (f['Notes'] || '');
+    if (type && !notes.includes(type)) return false;
+    if (search) {
+      const hay = `${f['Name']} ${f['Email']} ${f['Phone']} ${f['State']} ${notes}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+  document.getElementById('wl-count').textContent = `${rows.length} of ${_wlAll.length} leads`;
+  if (!rows.length) {
+    document.getElementById('wl-body').innerHTML =
+      '<div style="color:var(--muted);font-size:12px;padding:12px 0">No leads match filter</div>';
+    return;
+  }
+  document.getElementById('wl-body').innerHTML = `
+    <div style="overflow-x:auto">
+      <table class="data-table">
+        <thead><tr>
+          <th>Name</th><th>Email</th><th>Phone</th><th>Type</th>
+          <th>State</th><th>Role / Restaurant</th><th>Signed Up</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => {
+            const f = r.fields;
+            const isWorker = (f['Notes']||'').includes('Worker');
+            const detail   = isWorker ? (f['Role']||'—') : (f['Restaurant']||'—');
+            const typeBadge = isWorker
+              ? `<span class="badge b-active">Worker</span>`
+              : `<span class="badge b-filled">Owner</span>`;
+            return `<tr>
+              <td style="font-weight:600">${f['Name']||'—'}</td>
+              <td style="color:var(--muted)">${f['Email']||'—'}</td>
+              <td style="color:var(--muted)">${f['Phone']||'—'}</td>
+              <td>${typeBadge}</td>
+              <td>${f['State']||'—'}</td>
+              <td style="color:var(--muted)">${detail}</td>
+              <td style="color:var(--muted);white-space:nowrap">${f['Signed Up At']||'—'}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('wl-search')?.addEventListener('input', renderWaitlist);
+  document.getElementById('wl-type')?.addEventListener('change', renderWaitlist);
+});
+
+// ── User List (/admin/users) ──────────────────────────────────────────────────
+let _ulPage = 1;
+
+async function loadUserList(page) {
+  _ulPage = page || 1;
+  const search = document.getElementById('ul-search')?.value.trim() || '';
+  const type   = document.getElementById('ul-type')?.value || '';
+  document.getElementById('ul-body').innerHTML =
+    '<div class="skel" style="height:160px;border-radius:6px"></div>';
+  try {
+    const params = new URLSearchParams({ page: _ulPage, limit: 20 });
+    if (search) params.set('search', search);
+    if (type)   params.set('type', type);
+    const d = await apiFetch(`/admin/users?${params}`);
+    const { users, total, limit } = d;
+    const pages = Math.ceil(total / limit);
+    document.getElementById('ul-count').textContent = `${total} user${total !== 1 ? 's' : ''}`;
+    if (!users.length) {
+      document.getElementById('ul-body').innerHTML =
+        '<div style="color:var(--muted);font-size:12px;padding:12px 0">No users found</div>';
+      document.getElementById('ul-pagination').innerHTML = '';
+      return;
+    }
+    document.getElementById('ul-body').innerHTML = `
+      <div style="overflow-x:auto">
+        <table class="data-table">
+          <thead><tr>
+            <th>Name</th><th>Phone</th><th>Type</th><th>Trust</th>
+            <th>Verified</th><th>Location</th><th>Plan</th><th>Joined</th>
+          </tr></thead>
+          <tbody>
+            ${users.map(u => `<tr>
+              <td style="font-weight:600">${u.name||'—'}</td>
+              <td style="color:var(--muted)">${u.phone||'—'}</td>
+              <td>${u.user_type === 'worker'
+                ? '<span class="badge b-active">Worker</span>'
+                : '<span class="badge b-filled">Owner</span>'}</td>
+              <td>${u.trust_score != null ? parseFloat(u.trust_score).toFixed(1) : '—'}</td>
+              <td>${u.is_verified ? '<span class="badge b-ok">Yes</span>' : '<span class="badge b-draft">No</span>'}</td>
+              <td style="color:var(--muted)">${u.location||'—'}</td>
+              <td style="color:var(--muted)">${u.plan||'free'}</td>
+              <td style="color:var(--muted);white-space:nowrap">${u.created_at ? timeAgo(u.created_at) : '—'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    // Pagination
+    let pag = '';
+    if (pages > 1) {
+      const start = Math.max(1, _ulPage - 2), end = Math.min(pages, _ulPage + 2);
+      if (_ulPage > 1) pag += `<button class="refresh-btn" onclick="loadUserList(${_ulPage-1})">‹ Prev</button>`;
+      for (let p = start; p <= end; p++) {
+        pag += `<button class="refresh-btn" onclick="loadUserList(${p})"
+          style="${p === _ulPage ? 'border-color:var(--accent);color:var(--accent)' : ''}">${p}</button>`;
+      }
+      if (_ulPage < pages) pag += `<button class="refresh-btn" onclick="loadUserList(${_ulPage+1})">Next ›</button>`;
+    }
+    document.getElementById('ul-pagination').innerHTML = pag;
+  } catch(e) {
+    document.getElementById('ul-body').innerHTML =
+      `<div style="color:var(--muted);font-size:12px;padding:12px 0">Error: ${e.message}</div>`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('ul-search')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') loadUserList(1);
+  });
+});
 
 // ── Render: Users ─────────────────────────────────────────────────────────────
 function renderUsers(ov) {
@@ -1042,9 +1241,15 @@ function showStatsUnavailable() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 function initDashboard() {
   loadAll();
+  loadWaitlist();
+  loadUserList(1);
   setInterval(loadAll, 5 * 60 * 1000); // auto-refresh every 5 min
 
-  document.getElementById('refresh-btn').addEventListener('click', loadAll);
+  document.getElementById('refresh-btn').addEventListener('click', () => {
+    loadAll();
+    loadWaitlist();
+    loadUserList(1);
+  });
 
   document.getElementById('days-sel').addEventListener('change', e => {
     _days = parseInt(e.target.value, 10);
