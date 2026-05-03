@@ -265,22 +265,22 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;displ
   </div>
   <div class="sb-nav">
     <div class="sb-section">Overview</div>
-    <a class="sb-link active" onclick="scrollTo('s-kpi')"><span class="si">📊</span>KPIs</a>
-    <a class="sb-link" onclick="scrollTo('s-growth')"><span class="si">📈</span>Growth</a>
-    <a class="sb-link" onclick="scrollTo('s-funnel')"><span class="si">🔽</span>Funnel</a>
+    <a class="sb-link active" data-section="s-kpi" onclick="navTo('s-kpi')"><span class="si">📊</span>KPIs</a>
+    <a class="sb-link" data-section="s-growth" onclick="navTo('s-growth')"><span class="si">📈</span>Growth</a>
+    <a class="sb-link" data-section="s-funnel" onclick="navTo('s-funnel')"><span class="si">🔽</span>Funnel</a>
     <div class="sb-section">Users &amp; Platform</div>
-    <a class="sb-link" onclick="scrollTo('s-users')"><span class="si">👥</span>Users</a>
-    <a class="sb-link" onclick="scrollTo('s-geo')"><span class="si">🗺️</span>Geography</a>
-    <a class="sb-link" onclick="scrollTo('s-trust')"><span class="si">⭐</span>Trust</a>
+    <a class="sb-link" data-section="s-users" onclick="navTo('s-users')"><span class="si">👥</span>Users</a>
+    <a class="sb-link" data-section="s-geo" onclick="navTo('s-geo')"><span class="si">🗺️</span>Geography</a>
+    <a class="sb-link" data-section="s-trust" onclick="navTo('s-trust')"><span class="si">⭐</span>Trust</a>
     <div class="sb-section">Jobs &amp; Hiring</div>
-    <a class="sb-link" onclick="scrollTo('s-jobs')"><span class="si">💼</span>Jobs</a>
-    <a class="sb-link" onclick="scrollTo('s-offers')"><span class="si">🤝</span>Offers</a>
-    <a class="sb-link" onclick="scrollTo('s-agreements')"><span class="si">📄</span>Agreements</a>
+    <a class="sb-link" data-section="s-jobs" onclick="navTo('s-jobs')"><span class="si">💼</span>Jobs</a>
+    <a class="sb-link" data-section="s-offers" onclick="navTo('s-offers')"><span class="si">🤝</span>Offers</a>
+    <a class="sb-link" data-section="s-agreements" onclick="navTo('s-agreements')"><span class="si">📄</span>Agreements</a>
     <div class="sb-section">Finance</div>
-    <a class="sb-link" onclick="scrollTo('s-pay')"><span class="si">💰</span>Pay Security</a>
-    <a class="sb-link" onclick="scrollTo('s-revenue')"><span class="si">💳</span>Revenue</a>
+    <a class="sb-link" data-section="s-pay" onclick="navTo('s-pay')"><span class="si">💰</span>Pay Security</a>
+    <a class="sb-link" data-section="s-revenue" onclick="navTo('s-revenue')"><span class="si">💳</span>Revenue</a>
     <div class="sb-section">Live</div>
-    <a class="sb-link" onclick="scrollTo('s-activity')"><span class="si">⚡</span>Activity</a>
+    <a class="sb-link" data-section="s-activity" onclick="navTo('s-activity')"><span class="si">⚡</span>Activity</a>
   </div>
   <div class="sb-footer">
     <span class="refresh-info" id="last-ref">—</span>
@@ -570,15 +570,30 @@ document.getElementById('logout-btn').addEventListener('click', () => {
   location.reload();
 });
 
-// ── Sidebar scroll-spy ────────────────────────────────────────────────────────
-function scrollTo(id) {
-  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+// ── Sidebar navigation ────────────────────────────────────────────────────────
+function navTo(id) {
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  setActiveLink(id);
 }
-document.querySelectorAll('.sb-link').forEach(link => {
-  link.addEventListener('click', () => {
-    document.querySelectorAll('.sb-link').forEach(l => l.classList.remove('active'));
-    link.classList.add('active');
-  });
+function setActiveLink(sectionId) {
+  document.querySelectorAll('.sb-link').forEach(l => l.classList.remove('active'));
+  const link = document.querySelector(`.sb-link[data-section="${sectionId}"]`);
+  if (link) link.classList.add('active');
+}
+
+// Auto-highlight active link as user scrolls
+const _sectionIds = ['s-kpi','s-growth','s-funnel','s-users','s-geo','s-trust','s-jobs','s-offers','s-agreements','s-pay','s-revenue','s-activity'];
+const _observer = new IntersectionObserver(entries => {
+  for (const entry of entries) {
+    if (entry.isIntersecting) {
+      setActiveLink(entry.target.id);
+      break;
+    }
+  }
+}, { rootMargin: '-20% 0px -70% 0px', threshold: 0 });
+_sectionIds.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) _observer.observe(el);
 });
 
 // ── Chart registry ────────────────────────────────────────────────────────────
