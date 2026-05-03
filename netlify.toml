@@ -3,20 +3,6 @@
   functions = "web/netlify/functions"
   command = "echo 'Static site — no build needed'"
 
-# Serve real .html files directly — never rewrite them to index.html
-[[redirects]]
-  from = "/dashboard.html"
-  to = "/dashboard.html"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/admin.html"
-  to = "/admin.html"
-  status = 200
-  force = true
-
-# SPA fallback for everything else
 [[redirects]]
   from = "/*"
   to = "/index.html"
