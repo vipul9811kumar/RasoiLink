@@ -705,8 +705,11 @@ async function fetchApkDownloads() {
     const r = await fetch('https://api.github.com/repos/vipul9811kumar/RasoiLink/releases/tags/v1.0.0-beta',
       { headers: { Accept: 'application/vnd.github+json' } });
     const j = await r.json();
-    const asset = (j.assets || []).find(a => a.name === 'rasoilink-latest.apk');
-    return asset?.download_count ?? 0;
+    const asset  = (j.assets || []).find(a => a.name === 'rasoilink-latest.apk');
+    const current = asset?.download_count ?? 0;
+    const match   = (j.body || '').match(/<!-- downloads_offset:(\d+) -->/);
+    const offset  = match ? parseInt(match[1], 10) : 0;
+    return current + offset;
   } catch { return '—'; }
 }
 
