@@ -700,7 +700,17 @@ function statusBadge(s) {
 }
 
 // ── Render: KPIs ─────────────────────────────────────────────────────────────
-function renderKPIs(ov, stats) {
+async function fetchApkDownloads() {
+  try {
+    const r = await fetch('https://api.github.com/repos/vipul9811kumar/RasoiLink/releases/tags/v1.0.0-beta',
+      { headers: { Accept: 'application/vnd.github+json' } });
+    const j = await r.json();
+    const asset = (j.assets || []).find(a => a.name === 'rasoilink-latest.apk');
+    return asset?.download_count ?? 0;
+  } catch { return '—'; }
+}
+
+function renderKPIs(ov, stats, apkDownloads) {
   const u  = ov.users;
   const l  = ov.listings;
   const o  = ov.offers;
@@ -717,7 +727,8 @@ function renderKPIs(ov, stats) {
     kpi('Offers Made',       fmt(o.total),   `${fmt(o.pending)} pending · ${fmt(o.accepted)} accepted`, COLORS.purple) +
     kpi('Active Agreements', fmt(stats?.agreements?.by_status?.active_agreement ?? '—'), `Signed employment agreements`, COLORS.ok) +
     kpi('MRR',               '$' + fmt(parseInt(mrr)), `${fmt(s.active)} active subscriptions`, COLORS.a2) +
-    kpi('Dispute Rate',      (dr !== '—' ? dr + '%' : '—'), `Pay cycle health indicator`, COLORS.danger, drClass);
+    kpi('Dispute Rate',      (dr !== '—' ? dr + '%' : '—'), `Pay cycle health indicator`, COLORS.danger, drClass) +
+    kpi('App Downloads',     apkDownloads !== undefined ? fmt(apkDownloads) : '…', `rasoilink.com/app — all time`, COLORS.teal);
 }
 
 // ── Render: Growth charts ─────────────────────────────────────────────────────
@@ -1247,14 +1258,15 @@ async function loadAll() {
   btn.classList.add('spinning');
 
   try {
-    // overview + activity always exist — load these first
-    const [ov, activity] = await Promise.all([
+    // overview + activity + APK downloads — load in parallel
+    const [ov, activity, apkDownloads] = await Promise.all([
       apiFetch('/admin/overview'),
       apiFetch('/admin/activity?limit=40'),
+      fetchApkDownloads(),
     ]);
 
     // Render everything that only needs overview
-    renderKPIs(ov, null);
+    renderKPIs(ov, null, apkDownloads);
     renderUsers(ov);
     renderRevenue(ov);
     renderActivity(activity.events);
@@ -1269,7 +1281,7 @@ async function loadAll() {
     }
 
     if (stats) {
-      renderKPIs(ov, stats);   // re-render KPIs with dispute rate from stats
+      renderKPIs(ov, stats, apkDownloads);   // re-render KPIs with dispute rate from stats
       renderGrowth(stats.trends);
       renderFunnel(stats.funnel);
       renderGeoList('geo-workers',  stats.geo.workers,  COLORS.teal);
