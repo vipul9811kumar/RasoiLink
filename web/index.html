@@ -2003,7 +2003,7 @@
     <div class="waitlist-form" id="worker-form">
       <div class="form-row">
         <input class="form-input" type="text" placeholder="Your name" id="w-name" data-i18n-placeholder="form.name">
-        <input class="form-input" type="tel" placeholder="+1 (555) 000-0000 — WhatsApp" id="w-phone" data-i18n-placeholder="form.phone" required>
+        <input class="form-input" type="tel" placeholder="+1 or +91 — WhatsApp number" id="w-phone" data-i18n-placeholder="form.phone" required>
       </div>
       <input class="form-input" type="email" placeholder="Email address" id="w-email" data-i18n-placeholder="form.email">
       <div class="form-row">
@@ -2039,7 +2039,7 @@
       </div>
       <input class="form-input" type="email" placeholder="Business email" id="o-email" data-i18n-placeholder="form.bizEmail">
       <div class="form-row">
-        <input class="form-input" type="tel" placeholder="+1 (555) 000-0000 — WhatsApp" id="o-phone" data-i18n-placeholder="form.phone" required>
+        <input class="form-input" type="tel" placeholder="+1 or +91 — WhatsApp number" id="o-phone" data-i18n-placeholder="form.phone" required>
         <select class="form-select" id="o-state">
           <option value="" disabled selected data-i18n="form.stateSelect2">Your state</option>
           <option>New York / New Jersey</option>
@@ -2408,12 +2408,12 @@
       return;
     }
 
-    // Normalize phone to E.164 (+1XXXXXXXXXX for US)
+    // Normalize phone to E.164 — supports +1 (US/Canada) and +91 (India)
     const digits = phone.replace(/\D/g, '');
     const normalizedPhone = phone.startsWith('+') ? phone
-      : digits.length === 10 ? `+1${digits}`
-      : digits.length === 11 && digits.startsWith('1') ? `+${digits}`
-      : `+${digits}`;
+      : digits.length === 11 && digits.startsWith('1')  ? `+${digits}`   // US with country code
+      : digits.length === 12 && digits.startsWith('91') ? `+${digits}`   // India with country code
+      : `+${digits}`;  // trust as-is
 
     // Disable button & show loading state
     const btn = document.querySelector(`#${isWorker ? 'worker' : 'owner'}-form .form-submit`);

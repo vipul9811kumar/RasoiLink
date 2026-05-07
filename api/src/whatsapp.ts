@@ -28,9 +28,9 @@ export const WHATSAPP_ENABLED = !!API_KEY;
 export function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   if (phone.startsWith('+')) return phone;
-  if (digits.length === 10) return `+1${digits}`;
-  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-  return `+${digits}`;
+  if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;   // US with country code
+  if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`;  // India with country code
+  return `+${digits}`;  // trust whatever was sent — app always sends with country prefix
 }
 
 /** Strip leading + for AiSensy — it expects digits only, no + prefix */

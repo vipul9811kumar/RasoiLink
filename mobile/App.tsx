@@ -159,9 +159,15 @@ function LanguageSelector({ onSelect }: { onSelect: (code: string) => void }) {
 }
 
 // ─── Auth Screen — Phone → OTP → JWT ─────────────────────────────────────────
+const COUNTRY_CODES = [
+  { code: '+1',  flag: '🇺🇸', label: 'US / Canada', digits: 10 },
+  { code: '+91', flag: '🇮🇳', label: 'India',        digits: 10 },
+];
+
 function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) => void; language: string }) {
   const [step, setStep]           = useState<'phone'|'otp'>('phone');
   const [phone, setPhone]         = useState('');
+  const [countryCode, setCountryCode] = useState('+1');
   const [name, setName]           = useState('');
   const [userType, setUserType]   = useState<'worker'|'owner'>('worker');
   const [otp, setOtp]             = useState('');
@@ -179,14 +185,14 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
   function normalizePhone(raw: string): string {
     const digits = raw.replace(/\D/g, '');
     if (raw.startsWith('+')) return raw;
-    if (digits.length === 10) return `+1${digits}`;
-    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
-    return `+${digits}`;
+    return `${countryCode}${digits}`;
   }
 
   async function sendOtp() {
-    if (!phone || phone.replace(/[^0-9]/g,'').length < 10) {
-      setError('Enter a valid phone number (e.g. +1 2125550000)'); return;
+    const digits = phone.replace(/[^0-9]/g, '');
+    const country = COUNTRY_CODES.find(c => c.code === countryCode);
+    if (!digits || digits.length < (country?.digits ?? 10)) {
+      setError(`Enter a valid ${country?.digits ?? 10}-digit phone number`); return;
     }
     if (!returning && !name.trim()) { setError('Enter your name'); return; }
     const normalizedPhone = normalizePhone(phone);
@@ -284,13 +290,29 @@ function AuthScreen({ onLogin, language }: { onLogin: (u: any, is_new: boolean) 
       </>}
 
       <Text style={s.fieldLabel}>Phone Number</Text>
+      <View style={{flexDirection:'row',marginBottom:8,gap:8}}>
+        {COUNTRY_CODES.map(c => (
+          <TouchableOpacity
+            key={c.code}
+            onPress={() => { setCountryCode(c.code); setPhone(''); setError(''); }}
+            style={{flex:1,flexDirection:'row',alignItems:'center',justifyContent:'center',
+              padding:10,borderRadius:10,borderWidth:2,
+              borderColor: countryCode===c.code ? ORANGE : '#ddd',
+              backgroundColor: countryCode===c.code ? '#FFF3E0' : '#fafafa'}}
+          >
+            <Text style={{fontSize:18,marginRight:6}}>{c.flag}</Text>
+            <Text style={{fontWeight:'700',color: countryCode===c.code ? ORANGE : '#666'}}>{c.code}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       <TextInput
         style={s.input}
-        placeholder="+1 (555) 000-0000"
+        placeholder={countryCode === '+91' ? '98765 43210' : '(555) 000-0000'}
         value={phone}
-        onChangeText={v => { setPhone(v.replace(/[^0-9+()\s-]/g,'')); setError(''); }}
-        keyboardType="phone-pad"
+        onChangeText={v => { setPhone(v.replace(/[^0-9]/g,'')); setError(''); }}
+        keyboardType="number-pad"
         autoCapitalize="none"
+        maxLength={10}
       />
 
       {error ? (
