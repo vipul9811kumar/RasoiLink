@@ -514,4 +514,81 @@ export async function adminRoutes(app: FastifyInstance) {
       error: null,
     });
   });
+
+  // ── Waitlist: who is pending (on waitlist but no user account yet) ────────────
+  app.get('/admin/waitlist/pending', async (req: any, reply) => {
+    if (!checkAdminKey(req, reply)) return;
+
+    const result = await query(`
+      SELECT w.waitlist_id, w.phone, w.name, w.user_type, w.joined_at
+      FROM app.waitlist w
+      LEFT JOIN app.users u ON u.phone = w.phone
+      WHERE u.user_id IS NULL
+      ORDER BY w.joined_at ASC
+    `);
+
+    return reply.send({
+      success: true,
+      data: { pending: result.rows, count: result.rows.length },
+      error: null,
+    });
+  });
+
+  // ── Waitlist: provision accounts for all pending waitlist entries ─────────────
+  // Creates user + profile for each waitlist entry that has no account yet.
+  // Safe to call multiple times — skips anyone already provisioned.
+  app.post('/admin/waitlist/provision', async (req: any, reply) => {
+    if (!checkAdminKey(req, reply)) return;
+
+    const pending = await query(`
+      SELECT w.phone, w.name, w.user_type
+      FROM app.waitlist w
+      LEFT JOIN app.users u ON u.phone = w.phone
+      WHERE u.user_id IS NULL
+    `);
+
+    if (!pending.rows.length) {
+      return reply.send({ success: true, data: { created: [], count: 0 }, error: null });
+    }
+
+    const created: { name: string; phone: string; user_type: string; user_id: string }[] = [];
+
+    for (const w of pending.rows) {
+      const inserted = await query(
+        `INSERT INTO app.users (phone, name, user_type, language_code, is_verified, password_hash)
+         VALUES ($1, $2, $3, 'en', true, '')
+         ON CONFLICT (phone) DO NOTHING
+         RETURNING user_id, phone, name, user_type`,
+        [w.phone, w.name.trim(), w.user_type],
+      );
+
+      if (!inserted.rows.length) continue; // already existed (race), skip
+
+      const { user_id, user_type } = inserted.rows[0];
+
+      if (user_type === 'worker') {
+        await query(
+          `INSERT INTO app.worker_profiles (worker_id, role_code, years_experience, current_state, salary_min_cents, salary_max_cents)
+           VALUES ($1, 'kitchen_helper', 0, 'NJ', 140000, 200000)
+           ON CONFLICT DO NOTHING`,
+          [user_id],
+        );
+      } else {
+        await query(
+          `INSERT INTO app.owner_profiles (owner_id, restaurant_name, restaurant_address, city, state, zip_code)
+           VALUES ($1, 'My Restaurant', '123 Main St', 'Edison', 'NJ', '08817')
+           ON CONFLICT DO NOTHING`,
+          [user_id],
+        );
+      }
+
+      created.push({ name: w.name, phone: w.phone, user_type, user_id });
+    }
+
+    return reply.send({
+      success: true,
+      data: { created, count: created.length },
+      error: null,
+    });
+  });
 }
